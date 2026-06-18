@@ -1,0 +1,3179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConfigMgr BIOS Compliance Checker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg-secondary: #f5f5f4; --bg-tertiary: #efefed;
+    --text: #1a1a18; --text-secondary: #6b6b67; --text-tertiary: #9d9d99;
+    --border: rgba(0,0,0,0.12); --border-strong: rgba(0,0,0,0.22);
+    --accent: #1a1a18;
+    --success-bg: #eaf3de; --success-text: #3b6d11;
+    --danger-bg: #fcebeb;  --danger-text: #a32d2d;
+    --warn-bg: #faeeda;    --warn-text: #854f0b;
+    --radius: 10px; --radius-sm: 6px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a; --bg-secondary: #252523; --bg-tertiary: #2e2e2b;
+      --text: #f0ede8; --text-secondary: #a8a8a2; --text-tertiary: #6b6b67;
+      --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.20);
+      --accent: #f0ede8;
+      --success-bg: #173404; --success-text: #97c459;
+      --danger-bg: #501313;  --danger-text: #f09595;
+      --warn-bg: #412402;    --warn-text: #ef9f27;
+    }
+  }
+
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg-tertiary); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.5; }
+  .page { width: 100%; padding: 2rem clamp(1rem, 3vw, 3rem) 4rem; }
+
+  /* ── HEADER ── */
+  header { margin-bottom: 2rem; display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+  header h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+  header p  { font-size: 14px; color: var(--text-secondary); margin-top: 3px; }
+  .version-badge { font-size: 11px; padding: 3px 10px; background: var(--bg-secondary); border: 0.5px solid var(--border); border-radius: 99px; color: var(--text-secondary); white-space: nowrap; }
+
+  /* ── CARDS ── */
+  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem; }
+  .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 1rem; }
+
+  /* ── PIPELINE STEPS ── */
+  .pipeline-track { position: relative; padding-left: 28px; }
+  .pipeline-track::before { content: ''; position: absolute; left: 5px; top: 18px; bottom: 18px; width: 1px; background: var(--border-strong); }
+  .pipeline-step { position: relative; padding: 1rem 0 1.25rem; }
+  .pipeline-step::before { content: ''; position: absolute; left: -25px; top: 20px; width: 11px; height: 11px; border-radius: 50%; background: var(--bg); border: 1.5px solid var(--border-strong); }
+  .pipeline-step-optional::before { border-style: dashed; }
+  .pipeline-step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap; }
+  .step-pill { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 10px; border-radius: 99px; background: var(--bg-secondary); border: 0.5px solid var(--border-strong); color: var(--text-secondary); white-space: nowrap; }
+  .step-pill-optional { background: transparent; border-style: dashed; }
+  .step-heading { font-size: 15px; font-weight: 600; color: var(--text); }
+  .step-optional-badge { font-size: 11px; color: var(--text-tertiary); border: 0.5px dashed var(--border-strong); border-radius: 99px; padding: 2px 8px; margin-left: 2px; }
+  .pipeline-step-optional .step-heading { color: var(--text-secondary); }
+
+  /* ── STEP LAYOUT (legacy — kept for any residual refs) ── */
+  .step-num { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 0.4rem; }
+  .step-heading { font-size: 15px; font-weight: 600; margin-bottom: 1rem; }
+
+  /* ── TABS ── */
+  .tab-bar { display: flex; border-bottom: 0.5px solid var(--border); margin-bottom: 1rem; gap: 0; }
+  .tab { padding: 6px 14px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab:hover:not(.active) { color: var(--text); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── CODE BLOCK ── */
+  .code-block { background: var(--bg-secondary); border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm); padding: 14px 16px; font-family: 'SF Mono','Fira Code',monospace; font-size: 12px; color: var(--text); overflow-x: auto; white-space: pre; line-height: 1.65; margin-top: 8px; }
+
+  /* ── INFO / WARN BOX ── */
+  .info-box { background: var(--bg-secondary); border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm); padding: 10px 13px; font-size: 12px; color: var(--text-secondary); line-height: 1.55; margin-top: 8px; }
+  .info-box strong { display: block; margin-bottom: 2px; color: var(--text); font-weight: 600; }
+  .warn-box { background: var(--warn-bg); border: 0.5px solid rgba(0,0,0,0.10); border-radius: var(--radius-sm); padding: 10px 13px; font-size: 12px; color: var(--warn-text); line-height: 1.55; margin-top: 8px; }
+
+  /* ── UPLOAD / DROP ZONE ── */
+  .drop-zone { border: 1.5px dashed var(--border-strong); border-radius: var(--radius); padding: 1.5rem 1rem; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: var(--bg-secondary); }
+  .drop-zone.loaded { border-color: var(--success-text); border-style: solid; }
+  .drop-zone input[type="file"] { display: none; }
+  .drop-zone .icon  { font-size: 28px; margin-bottom: 0.5rem; }
+  .drop-zone .label { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+  .drop-zone .hint  { font-size: 12px; color: var(--text-secondary); }
+  .upload-status { font-size: 12px; margin-top: 8px; min-height: 18px; color: var(--success-text); }
+
+  /* ── CSV COLUMN SELECTORS ── */
+  .csv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 1rem; }
+  @media (max-width: 500px) { .csv-grid { grid-template-columns: 1fr; } }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); }
+  .field select { width: 100%; padding: 7px 10px; font-size: 13px; font-family: inherit; background: var(--bg-secondary); color: var(--text); border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm); outline: none; appearance: none; }
+  .field select:focus { border-color: var(--accent); }
+
+  /* ── STATUS BAR ── */
+  #statusBar { display: none; font-size: 12px; margin-top: 10px; padding: 8px 12px; border-radius: var(--radius-sm); }
+  #statusBar.show { display: block; }
+  #statusBar.error   { background: var(--danger-bg);  color: var(--danger-text); }
+  #statusBar.success { background: var(--success-bg); color: var(--success-text); }
+  #statusBar.info    { background: var(--bg-secondary); color: var(--text-secondary); }
+
+  /* ── BUTTONS ── */
+  button { font-family: inherit; font-size: 14px; font-weight: 500; padding: 9px 18px; border-radius: var(--radius-sm); cursor: pointer; border: none; transition: opacity 0.15s; }
+  .btn-primary   { background: var(--accent); color: var(--bg); }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-secondary { background: transparent; color: var(--text); border: 0.5px solid var(--border-strong); }
+  .btn-secondary:hover { background: var(--bg-secondary); }
+  .btn-secondary:disabled { opacity: 0.35; cursor: not-allowed; color: var(--text-secondary); }
+  .btn-danger    { background: transparent; color: var(--danger-text); border: 0.5px solid var(--border-strong); }
+  .btn-danger:hover { background: var(--danger-bg); }
+  .btn-sm { font-size: 12px; padding: 6px 12px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 1rem; }
+
+  /* ── STATS ── */
+  #statsSection { display: none; margin-bottom: 1rem; }
+  #statsSection.show { display: block; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 1rem; }
+  .stat-card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-sm); padding: 1rem 1.25rem; }
+  .stat-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .stat-value { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+  .stat-value.ok  { color: var(--success-text); }
+  .stat-sub { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+  .stat-value.bad { color: var(--danger-text); }
+
+  /* ── FILTERS ── */
+  #filterSection { display: none; margin-bottom: 1rem; }
+  #filterSection.show { display: block; }
+  .filters-grid { display: grid; grid-template-columns: 2fr repeat(3, minmax(120px, 1fr)) auto; gap: 10px; align-items: end; background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; }
+  @media (max-width: 800px) { .filters-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 450px) { .filters-grid { grid-template-columns: 1fr; } }
+  input[type="search"], input[type="text"], input[type="date"], select {
+    width: 100%; padding: 9px 12px; font-size: 14px; font-family: inherit;
+    background: var(--bg-secondary); color: var(--text);
+    border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm);
+    outline: none; appearance: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .filter-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); margin-bottom: 4px; }
+  .filter-col { display: flex; flex-direction: column; }
+  .filter-actions { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+
+  /* ── TOOLBAR ── */
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+  .toolbar-text { font-size: 13px; color: var(--text-secondary); }
+
+  /* ── TABLE ── */
+  #tableSection { display: none; }
+  #tableSection.show { display: block; }
+  .table-container { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; min-width: max-content; border-collapse: collapse; font-size: 13px; }
+  thead th { background: var(--bg-secondary); font-size: 12px; font-weight: 600; color: var(--text-secondary); text-align: left; padding: 11px 12px; border-bottom: 0.5px solid var(--border); cursor: pointer; user-select: none; white-space: nowrap; }
+  thead th:hover { color: var(--text); }
+  thead th .sort-arrow { margin-left: 4px; opacity: 0.4; font-size: 10px; }
+  thead th.sort-asc  .sort-arrow::after { content: '↑'; opacity: 1; }
+  thead th.sort-desc .sort-arrow::after { content: '↓'; opacity: 1; }
+  thead th:not(.sort-asc):not(.sort-desc) .sort-arrow::after { content: '↕'; }
+  tbody tr { border-bottom: 0.5px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--bg-secondary); }
+  tbody td { padding: 9px 12px; vertical-align: middle; }
+  tbody td.col-name { font-weight: 500; white-space: nowrap; }
+  tbody td.col-muted { color: var(--text-secondary); white-space: nowrap; }
+  tbody td.col-wrap { white-space: normal; word-break: break-word; min-width: 120px; }
+
+  /* ── BADGES ── */
+  .badge { display: inline-block; font-size: 11px; font-family: 'SF Mono','Fira Code',monospace; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+  .badge-bios    { background: var(--bg-secondary); color: var(--text-secondary); border: 0.5px solid var(--border-strong); }
+  .badge-ok      { background: var(--success-bg); color: var(--success-text); }
+  .badge-bad     { background: var(--danger-bg);  color: var(--danger-text); }
+  .badge-unknown { background: var(--bg-secondary); color: var(--text-tertiary); border: 0.5px solid var(--border); }
+  .badge-missing { color: var(--text-tertiary); font-size: 12px; }
+
+  /* ── EMPTY STATE ── */
+  .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-secondary); }
+
+  .badge-eol        { background: #2d1f00; color: #f59e0b; border: 0.5px solid #92600a; }
+  .badge-sb-ok      { background: var(--success-bg); color: var(--success-text); }
+  .badge-sb-bad     { background: var(--danger-bg);  color: var(--danger-text); }
+  .badge-sb-unknown { background: var(--bg-secondary); color: var(--text-tertiary); border: 0.5px solid var(--border); }
+  .badge-sbkp-ready  { background: var(--success-bg); color: var(--success-text); }
+  .badge-sbkp-needed { background: var(--danger-bg);  color: var(--danger-text); }
+  .badge-sbkp-nodata { background: var(--bg-secondary); color: var(--text-tertiary); border: 0.5px solid var(--border); }
+
+  /* ── SECURE BOOT IMPORT ── */
+  #sbImportCard { margin-bottom: 1rem; }
+  #sbImportCard .step-heading { margin-bottom: 0.6rem; }
+  #sbStatusBar { display: none; font-size: 12px; margin-top: 10px; padding: 8px 12px; border-radius: var(--radius-sm); }
+  #sbStatusBar.show  { display: block; }
+  #sbStatusBar.error   { background: var(--danger-bg);  color: var(--danger-text); }
+  #sbStatusBar.success { background: var(--success-bg); color: var(--success-text); }
+  #sbStatusBar.info    { background: var(--bg-secondary); color: var(--text-secondary); }
+
+  /* ── EXPORT DROPDOWN ── */
+  .export-wrap { position: relative; display: inline-block; }
+  .export-menu { display: none; position: absolute; right: 0; top: calc(100% + 4px); background: var(--bg); border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm); min-width: 148px; z-index: 100; overflow: hidden; }
+  .export-menu.open { display: block; }
+  .export-menu button { display: block; width: 100%; text-align: left; padding: 9px 14px; font-size: 13px; color: var(--text); background: none; border: none; cursor: pointer; white-space: nowrap; }
+  .export-menu button:hover { background: var(--bg-secondary); }
+  .export-menu hr { border: none; border-top: 0.5px solid var(--border); margin: 0; }
+
+  /* ── PRINT / PDF ── */
+  @media print {
+    body { background: #fff !important; color: #000 !important; font-size: 11px; }
+    .page { padding: 0 !important; }
+    header, #filterSection, .card, footer, #statsSection .section-label { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* Hide everything except stats + table */
+    .card, footer, #filterSection .filter-actions { display: none !important; }
+    #statsSection, #filterSection, #tableSection { display: block !important; }
+    #filterSection .filters-grid { border: none; padding: 0; gap: 0; }
+    .filter-col, .filter-actions { display: none !important; }
+    /* Table tweaks */
+    table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    th, td { border: 0.5px solid #ccc; padding: 4px 6px; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    .badge { border: 0.5px solid #ccc !important; padding: 1px 5px !important; font-size: 9px !important; border-radius: 3px !important; }
+    .toolbar { display: none !important; }
+    /* Stats */
+    .stats-grid { display: flex !important; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .stat-card { border: 0.5px solid #ccc !important; padding: 6px 10px !important; flex: 1 1 100px; }
+    /* Print header */
+    #printHeader { display: block !important; }
+  }
+  #printHeader { display: none; }
+
+  /* ── FOOTER ── */
+  footer { margin-top: 2rem; font-size: 12px; color: var(--text-tertiary); text-align: center; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div>
+      <h1>ConfigMgr BIOS Compliance</h1>
+      <p>File-based &middot; No login required &middot; Secure Boot 2023</p>
+    </div>
+    <span class="version-badge">v1.6 &middot; ConfigMgr / SCCM</span>
+  </header>
+
+  <!-- ── IMPORT CARD ── -->
+  <div class="card">
+    <div class="section-label">Import data</div>
+
+    <div class="pipeline-track">
+
+    <!-- ── STEP 1 ── -->
+    <div class="pipeline-step">
+      <div class="pipeline-step-header">
+        <span class="step-pill">Step 1</span>
+        <span class="step-heading">Export device data from ConfigMgr</span>
+      </div>
+      <div class="pipeline-step-body">
+        <div class="tab-bar">
+          <div class="tab active" data-tab="ps">PowerShell Export</div>
+          <div class="tab" data-tab="ssrs">SSRS Report</div>
+        </div>
+        <div class="tab-content active" id="tab-ps">
+          <p style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:8px;">Run this script on any machine with direct SQL access to the ConfigMgr site database. It exports device BIOS data as a JSON file.</p>
+          <div class="code-block"># ConfigMgr BIOS Export Script
+# Requires: Read-Only Analyst role (or SQL read access)
+
+param(
+  [string]$SiteServer  = "CMSERVER",
+  [string]$SiteCode    = "P01",
+  [string]$OutputFile  = ".\cm_bios_export.json"
+)
+
+$conn = New-Object System.Data.SqlClient.SqlConnection
+$conn.ConnectionString = "Server=$SiteServer;Database=CM_$SiteCode;Integrated Security=SSPI;Connect Timeout=30"
+$conn.Open()
+
+# Check whether Win32_ComputerSystemProduct is enabled in Hardware Inventory.
+# When enabled, its Version0 field contains the SMBIOS Type 1 version string.
+# For HP devices this includes "SBKPFV3" if the BIOS is already prepared for
+# the new Secure Boot certificates (per HP ISH_13070353).
+$chkCmd = $conn.CreateCommand()
+$chkCmd.CommandText = "SELECT COUNT(*) FROM sys.views WHERE name = 'v_GS_COMPUTER_SYSTEM_PRODUCT'"
+$hasCspView = [int]$chkCmd.ExecuteScalar() -gt 0
+
+if ($hasCspView) {
+  Write-Host "Win32_ComputerSystemProduct view found — CSPVersion will be included." -ForegroundColor Cyan
+} else {
+  Write-Host "Win32_ComputerSystemProduct not found in HW Inventory — CSPVersion will be empty." -ForegroundColor Yellow
+  Write-Host "To enable: CM Console → Administration → Client Settings → Hardware Inventory → Add class → Win32_ComputerSystemProduct" -ForegroundColor Yellow
+}
+
+# Build query dynamically: include CSP join only when the view exists
+$cspSelect = if ($hasCspView) { ",`n  csp.Version0            AS CSPVersion"                                      } else { ",`n  NULL                    AS CSPVersion" }
+$cspJoin   = if ($hasCspView) { "`nLEFT JOIN v_GS_COMPUTER_SYSTEM_PRODUCT csp ON sys.ResourceID = csp.ResourceID" } else { "" }
+
+$query = @"
+SELECT DISTINCT
+  sys.Name0               AS ComputerName,
+  cs.Manufacturer0        AS Manufacturer,
+  cs.Model0               AS Model,
+  bios.SMBIOSBIOSVersion0 AS BIOSVersion,
+  bios.ReleaseDate0       AS BIOSReleaseDate,
+  hw.LastHWScan           AS LastHardwareScan$cspSelect
+FROM v_R_System sys
+JOIN v_GS_COMPUTER_SYSTEM    cs   ON sys.ResourceID = cs.ResourceID
+JOIN v_GS_PC_BIOS            bios ON sys.ResourceID = bios.ResourceID
+LEFT JOIN v_GS_WORKSTATION_STATUS hw ON sys.ResourceID = hw.ResourceID$cspJoin
+WHERE sys.Client0 = 1
+  AND sys.Operating_System_Name_and0 LIKE '%Windows%'
+ORDER BY sys.Name0
+"@
+
+$cmd = $conn.CreateCommand(); $cmd.CommandText = $query; $cmd.CommandTimeout = 120
+$reader = $cmd.ExecuteReader(); $results = @()
+while ($reader.Read()) {
+  $results += [PSCustomObject]@{
+    ComputerName     = $reader["ComputerName"]
+    Manufacturer     = $reader["Manufacturer"]
+    Model            = $reader["Model"]
+    BIOSVersion      = $reader["BIOSVersion"]
+    BIOSReleaseDate  = if ($reader["BIOSReleaseDate"] -is [DBNull]) { $null } else { $reader["BIOSReleaseDate"].ToString("yyyy-MM-dd") }
+    LastHardwareScan = if ($reader["LastHardwareScan"] -is [DBNull]) { $null } else { $reader["LastHardwareScan"].ToString("yyyy-MM-dd HH:mm") }
+    CSPVersion       = if ($reader["CSPVersion"] -is [DBNull]) { $null } else { $reader["CSPVersion"] }
+  }
+}
+$reader.Close(); $conn.Close()
+$results | ConvertTo-Json -Depth 3 | Out-File $OutputFile -Encoding UTF8
+Write-Host "Exported $($results.Count) devices to $OutputFile" -ForegroundColor Green</div>
+          <div class="info-box">
+            <strong>Required views</strong>
+            v_R_System &middot; v_GS_COMPUTER_SYSTEM &middot; v_GS_PC_BIOS &middot; v_GS_WORKSTATION_STATUS — the built-in <em>Read-Only Analyst</em> role is sufficient.<br><br>
+            <strong>Optional:</strong> v_GS_COMPUTER_SYSTEM_PRODUCT — enables the SBKPFV3 Secure Boot readiness check for HP devices. Enable via <em>Administration → Client Settings → Hardware Inventory → Set Classes → Win32_ComputerSystemProduct</em>.
+          </div>
+          <div class="warn-box" style="margin-top:8px;">⚠️ BIOSVersion is only populated if Hardware Inventory is enabled and devices have reported. Devices with no BIOS data will show as <em>Not checked</em>.</div>
+        </div>
+        <div class="tab-content" id="tab-ssrs">
+          <p style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:8px;">Create a custom SSRS report using the query below, then export as <strong>CSV (comma delimited)</strong> from the report viewer.</p>
+          <div class="code-block">-- SSRS Report Dataset Query
+-- Optional: remove the CSPVersion line and its JOIN below if
+-- Win32_ComputerSystemProduct is not enabled in Hardware Inventory.
+SELECT DISTINCT
+  sys.Name0                                    AS ComputerName,
+  cs.Manufacturer0                             AS Manufacturer,
+  cs.Model0                                    AS Model,
+  bios.SMBIOSBIOSVersion0                      AS BIOSVersion,
+  CONVERT(varchar(10), bios.ReleaseDate0, 120) AS BIOSReleaseDate,
+  CONVERT(varchar(16), hw.LastHWScan, 120)     AS LastHardwareScan,
+  ISNULL(csp.Version0, '')                     AS CSPVersion   -- SMBIOS Type 1 version; HP: contains SBKPFV3 if BIOS is Secure Boot ready
+FROM v_R_System sys
+  JOIN v_GS_COMPUTER_SYSTEM    cs   ON sys.ResourceID = cs.ResourceID
+  JOIN v_GS_PC_BIOS            bios ON sys.ResourceID = bios.ResourceID
+  LEFT JOIN v_GS_WORKSTATION_STATUS           hw  ON sys.ResourceID = hw.ResourceID
+  LEFT JOIN v_GS_COMPUTER_SYSTEM_PRODUCT      csp ON sys.ResourceID = csp.ResourceID  -- remove if not enabled
+WHERE sys.Client0 = 1
+  AND sys.Operating_System_Name_and0 LIKE '%Windows%'
+ORDER BY sys.Name0</div>
+          <div class="info-box">
+            <strong>Export tip</strong>
+            In the SSRS report viewer: Actions → Export → <em>CSV (comma delimited)</em>. Then load that file in Step 2.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STEP 2 ── -->
+    <div class="pipeline-step">
+      <div class="pipeline-step-header">
+        <span class="step-pill">Step 2</span>
+        <span class="step-heading">Load exported data</span>
+      </div>
+      <div class="pipeline-step-body">
+        <div class="drop-zone" id="dropZone"
+             onclick="document.getElementById('fileInput').click()"
+             ondragover="event.preventDefault();this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="handleDrop(event)">
+          <input type="file" id="fileInput" accept=".json,.csv" onchange="handleFile(this.files[0])">
+          <div class="icon">📂</div>
+          <div class="label">Drop file here</div>
+          <div class="hint">or click to browse &middot; accepts .json and .csv</div>
+          <div class="upload-status" id="uploadStatus"></div>
+        </div>
+
+        <!-- CSV column mapping (shown after CSV load) -->
+        <div id="csvOptions" style="display:none;">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-tertiary);margin:1rem 0 0.5rem;">Map columns</div>
+          <div class="csv-grid">
+            <div class="field"><label>Computer Name</label><select id="csvColName"></select></div>
+            <div class="field"><label>Manufacturer</label><select id="csvColMfg"></select></div>
+            <div class="field"><label>Model</label><select id="csvColModel"></select></div>
+            <div class="field"><label>BIOS Version</label><select id="csvColBios"></select></div>
+            <div class="field"><label>BIOS Date (optional)</label><select id="csvColDate"></select></div>
+            <div class="field"><label>Last HW Scan (optional)</label><select id="csvColScan"></select></div>
+            <div class="field"><label>CSP Version (optional)</label><select id="csvColCSP"></select></div>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-primary" id="btnAnalyze" onclick="runAnalysis()" disabled>▶ Run Analysis</button>
+          <button class="btn-secondary btn-sm" id="btnReset" onclick="resetAll()" style="display:none;">Reset</button>
+        </div>
+
+        <div id="statusBar"></div>
+      </div>
+    </div>
+
+    <!-- ── STEP 3 (optional) ── -->
+    <div class="pipeline-step pipeline-step-optional">
+      <div class="pipeline-step-header">
+        <span class="step-pill step-pill-optional">Step 3</span>
+        <span class="step-heading">Import Secure Boot status report</span>
+        <span class="step-optional-badge">optional</span>
+      </div>
+      <div class="pipeline-step-body">
+        <p style="font-size:12px;color:var(--text-secondary);line-height:1.55;margin-bottom:10px;">
+          Export the <strong>Secure Boot 2023</strong> compliance report from ConfigMgr as <em>CSV (comma delimited)</em> and load it here.
+          Devices are matched by computer name and a <em>Secure Boot</em> column is added to the results table.<br>
+          Expected columns: <code style="font-family:'SF Mono','Fira Code',monospace;font-size:11px;">Computer_Name</code> &middot; <code style="font-family:'SF Mono','Fira Code',monospace;font-size:11px;">Secure_Boot_2023_Status</code>
+          &nbsp;(values: <em>Updated (Compliant)</em> or <em>Not Updated (Non-Compliant)</em>).
+        </p>
+
+        <div style="display:grid;grid-template-columns:1fr auto;gap:1rem;align-items:start;">
+          <div>
+            <div class="drop-zone" id="sbDropZone"
+                 onclick="document.getElementById('sbFileInput').click()"
+                 ondragover="event.preventDefault();this.classList.add('drag-over')"
+                 ondragleave="this.classList.remove('drag-over')"
+                 ondrop="handleSBDrop(event)">
+              <input type="file" id="sbFileInput" accept=".csv" onchange="handleSBFile(this.files[0])">
+              <div class="icon">🔒</div>
+              <div class="label">Drop Secure Boot CSV here</div>
+              <div class="hint">or click to browse &middot; accepts .csv</div>
+              <div class="upload-status" id="sbUploadStatus"></div>
+            </div>
+            <div id="sbStatusBar"></div>
+          </div>
+
+          <!-- Column mapping (auto-shown after load) -->
+          <div id="sbColOptions" style="display:none;min-width:220px;">
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-tertiary);margin-bottom:0.5rem;">Map columns</div>
+            <div class="field" style="margin-bottom:8px;"><label>Computer Name</label><select id="sbColName"></select></div>
+            <div class="field"><label>Secure Boot Status</label><select id="sbColStatus"></select></div>
+            <div class="btn-row" style="margin-top:10px;">
+              <button class="btn-primary btn-sm" id="btnApplySB" onclick="applySBData()">Apply</button>
+              <button class="btn-secondary btn-sm" id="btnClearSB" onclick="clearSBData()" style="display:none;">Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    </div><!-- /pipeline-track -->
+  </div>
+
+  <!-- ── PRINT HEADER (visible only when printing) ── -->
+  <div id="printHeader">
+    <h1 style="font-size:18px;font-weight:600;margin-bottom:4px;">ConfigMgr BIOS Compliance Report</h1>
+    <p style="font-size:11px;color:#666;" id="printMeta"></p>
+    <hr style="border:none;border-top:1px solid #ccc;margin:8px 0 12px;">
+  </div>
+
+  <!-- ── STATS ── -->
+  <div id="statsSection">
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Total Devices</div><div class="stat-value" id="statTotal">—</div></div>
+      <div class="stat-card"><div class="stat-label">BIOS Up to Date</div><div class="stat-value ok" id="statOk">—</div><div class="stat-sub" id="statOkPct"></div></div>
+      <div class="stat-card"><div class="stat-label">Update Required</div><div class="stat-value bad" id="statBad">—</div><div class="stat-sub" id="statBadPct"></div></div>
+      <div class="stat-card"><div class="stat-label">Not Checked</div><div class="stat-value" id="statUnk">—</div></div>
+      <div class="stat-card" id="statVMCard" style="display:none;"><div class="stat-label">VMs Excluded</div><div class="stat-value" id="statVM">—</div><div class="stat-sub" id="statVMSub"></div></div>
+      <div class="stat-card" id="statSBCard" style="display:none;"><div class="stat-label">Secure Boot OK</div><div class="stat-value ok" id="statSBOk">—</div><div class="stat-sub" id="statSBOkPct"></div></div>
+      <div class="stat-card" id="statSBBadCard" style="display:none;"><div class="stat-label">Secure Boot Non-Compliant</div><div class="stat-value bad" id="statSBBad">—</div><div class="stat-sub" id="statSBBadPct"></div></div>
+      <div class="stat-card" id="statSBKPReadyCard" style="display:none;"><div class="stat-label">SBKPFV3 Ready</div><div class="stat-value ok" id="statSBKPReady">—</div><div class="stat-sub" id="statSBKPReadyPct"></div></div>
+      <div class="stat-card" id="statSBKPNeededCard" style="display:none;"><div class="stat-label">SBKPFV3 Needed</div><div class="stat-value bad" id="statSBKPNeeded">—</div><div class="stat-sub" id="statSBKPNeededPct"></div></div>
+    </div>
+  </div>
+
+  <!-- ── FILTERS ── -->
+  <div id="filterSection">
+    <div class="filters-grid">
+      <div class="filter-col">
+        <div class="filter-label">Search</div>
+        <input type="search" id="fSearch" placeholder="Device name, model..." oninput="applyFilters()">
+      </div>
+      <div class="filter-col">
+        <div class="filter-label">Manufacturer</div>
+        <select id="fMfg" onchange="applyFilters()"><option value="">All</option></select>
+      </div>
+      <div class="filter-col">
+        <div class="filter-label">Status</div>
+        <select id="fStatus" onchange="applyFilters()">
+          <option value="">All</option>
+          <option value="ok">Up to date</option>
+          <option value="bad">Update required</option>
+          <option value="unknown">Not checked</option>
+          <option value="eol">End of Life</option>
+        </select>
+      </div>
+      <div class="filter-col" id="fSBCol" style="display:none;">
+        <div class="filter-label">Secure Boot</div>
+        <select id="fSB" onchange="applyFilters()">
+          <option value="">All</option>
+          <option value="compliant">Compliant</option>
+          <option value="non-compliant">Non-Compliant</option>
+          <option value="unknown">Not in report</option>
+        </select>
+      </div>
+      <div class="filter-col" id="fSBKPCol" style="display:none;">
+        <div class="filter-label">SBKPFV3 (HP)</div>
+        <select id="fSBKP" onchange="applyFilters()">
+          <option value="">All</option>
+          <option value="ready">Ready</option>
+          <option value="needed">Update needed</option>
+          <option value="nodata">No data</option>
+        </select>
+      </div>
+      <div class="filter-col">
+        <div class="filter-label">Min BIOS Date</div>
+        <input type="date" id="fDateFrom" onchange="applyFilters()">
+      </div>
+      <div class="filter-actions">
+        <button class="btn-secondary btn-sm" onclick="clearFilters()">Clear</button>
+        <div class="export-wrap" id="exportWrap">
+          <button class="btn-secondary btn-sm" onclick="toggleExportMenu(event)">Export ▾</button>
+          <div class="export-menu" id="exportMenu">
+            <button onclick="exportCSV();closeExportMenu()">📄 CSV</button>
+            <hr>
+            <button onclick="exportHTML();closeExportMenu()">🌐 HTML report</button>
+            <button onclick="exportPDF();closeExportMenu()">🖨 PDF / Print</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TABLE ── -->
+  <div id="tableSection">
+    <div class="toolbar">
+      <span class="toolbar-text">Showing <strong id="countShown">0</strong> of <strong id="countTotal">0</strong> devices</span>
+    </div>
+    <div class="table-container">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th onclick="sortTable('ComputerName')">Device Name<span class="sort-arrow"></span></th>
+              <th onclick="sortTable('Manufacturer')">Manufacturer<span class="sort-arrow"></span></th>
+              <th onclick="sortTable('Model')">Model<span class="sort-arrow"></span></th>
+              <th onclick="sortTable('BIOSVersion')">BIOS (installed)<span class="sort-arrow"></span></th>
+              <th onclick="sortTable('minVersion')">BIOS (minimum)<span class="sort-arrow"></span></th>
+              <th onclick="sortTable('matchedModel')">DB Model<span class="sort-arrow"></span></th>
+              <th onclick="sortTable('status')">Status<span class="sort-arrow"></span></th>
+              <th onclick="sortTable('BIOSReleaseDate')">BIOS Date<span class="sort-arrow"></span></th>
+              <th onclick="sortTable('LastHardwareScan')">Last HW Scan<span class="sort-arrow"></span></th>
+              <th id="thSecureBoot" onclick="sortTable('secureBoot')" style="display:none;">Secure Boot<span class="sort-arrow"></span></th>
+              <th id="thSBKP" onclick="sortTable('sbkpfv3')" style="display:none;">SBKPFV3<span class="sort-arrow"></span></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <footer>All data is processed locally in the browser &middot; No login &middot; No data transmission</footer>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// BIOS DATABASE — Same as Intune tool (Dell + HP + Lenovo)
+// Source: Dell KB000347876 · HP Support · Lenovo HT518129
+// ═══════════════════════════════════════════════════════════
+const BIOS_DB = {
+  dell: {
+    // Desktops / OptiPlex
+    "OptiPlex 3000":          "1.7.0",
+    "OptiPlex 3000 Thin Client": "1.7.0",
+    "OptiPlex 3010":          "1.16.0",
+    "OptiPlex 3020":          "A19",
+    "OptiPlex 3020M":         "A09",
+    "OptiPlex 3040":          "1.14.0",
+    "OptiPlex 3046":          "1.13.0",
+    "OptiPlex 3050":          "1.19.0",
+    "OptiPlex 3060":          "1.18.0",
+    "OptiPlex 3070":          "1.16.0",
+    "OptiPlex 3080":          "2.12.0",
+    "OptiPlex 3090":          "1.11.0",
+    "OptiPlex 3090 Ultra":    "1.11.0",
+    "OptiPlex 5000":          "1.7.0",
+    "OptiPlex 5040":          "1.20.0",
+    "OptiPlex 5050":          "1.19.0",
+    "OptiPlex 5060":          "1.17.0",
+    "OptiPlex 5070":          "1.16.0",
+    "OptiPlex 5080":          "1.12.0",
+    "OptiPlex 5090":          "1.11.0",
+    "OptiPlex 7000":          "1.8.0",
+    "OptiPlex 7010":          "1.16.0",
+    "OptiPlex 7020":          "A19",
+    "OptiPlex 7040":          "1.20.0",
+    "OptiPlex 7050":          "1.19.0",
+    "OptiPlex 7060":          "1.17.0",
+    "OptiPlex 7070":          "1.16.0",
+    "OptiPlex 7071":          "1.15.0",
+    "OptiPlex 7080":          "1.12.0",
+    "OptiPlex 7090":          "1.11.0",
+    "OptiPlex 7090 Ultra":    "1.11.0",
+    "OptiPlex 7410":          "1.5.0",
+    "OptiPlex 7460 All-in-One": "1.17.0",
+    "OptiPlex 7470 All-in-One": "1.15.0",
+    "OptiPlex 7480 All-in-One": "1.11.0",
+    "OptiPlex 7490 All-in-One": "1.10.0",
+    "OptiPlex 9010":          "A29",
+    "OptiPlex 9020":          "A22",
+    "OptiPlex 9020M":         "A15",
+    "OptiPlex Tower Plus 7020":"1.4.0",
+    "OptiPlex All-in-One Plus 7410": "1.5.0",
+    // Latitude
+    "Latitude 3120":          "1.13.0",
+    "Latitude 3130":          "1.7.0",
+    "Latitude 3140":          "1.4.1",
+    "Latitude 3301":          "1.23.0",
+    "Latitude 3310":          "1.19.0",
+    "Latitude 3310 2-in-1":   "1.19.0",
+    "Latitude 3320":          "1.16.0",
+    "Latitude 3330":          "1.10.0",
+    "Latitude 3340":          "1.4.1",
+    "Latitude 3400":          "1.24.0",
+    "Latitude 3410":          "1.16.0",
+    "Latitude 3420":          "1.16.0",
+    "Latitude 3430":          "1.10.0",
+    "Latitude 3440":          "1.4.1",
+    "Latitude 3500":          "1.24.0",
+    "Latitude 3510":          "1.16.0",
+    "Latitude 3520":          "1.16.0",
+    "Latitude 3530":          "1.10.0",
+    "Latitude 3540":          "1.4.1",
+    "Latitude 5280":          "1.22.0",
+    "Latitude 5285":          "1.19.0",
+    "Latitude 5289":          "1.25.1",
+    "Latitude 5290":          "1.19.0",
+    "Latitude 5290 2-in-1":   "1.18.0",
+    "Latitude 5300":          "1.21.0",
+    "Latitude 5300 2-in-1":   "1.21.0",
+    "Latitude 5310":          "1.14.0",
+    "Latitude 5310 2-in-1":   "1.14.0",
+    "Latitude 5320":          "1.17.0",
+    "Latitude 5330":          "1.10.0",
+    "Latitude 5340":          "1.4.1",
+    "Latitude 5380":          "1.22.0",
+    "Latitude 5390":          "1.19.0",
+    "Latitude 5390 2-in-1":   "1.16.0",
+    "Latitude 5400":          "1.20.0",
+    "Latitude 5401":          "1.20.0",
+    "Latitude 5410":          "1.14.0",
+    "Latitude 5411":          "1.14.0",
+    "Latitude 5420":          "1.17.0",
+    "Latitude 5421":          "1.13.0",
+    "Latitude 5430":          "1.10.0",
+    "Latitude 5440":          "1.4.1",
+    "Latitude 5480":          "1.22.0",
+    "Latitude 5490":          "1.19.0",
+    "Latitude 5491":          "1.19.0",
+    "Latitude 5500":          "1.20.0",
+    "Latitude 5501":          "1.20.0",
+    "Latitude 5510":          "1.14.0",
+    "Latitude 5511":          "1.14.0",
+    "Latitude 5520":          "1.17.0",
+    "Latitude 5521":          "1.13.0",
+    "Latitude 5530":          "1.10.0",
+    "Latitude 5540":          "1.4.1",
+    "Latitude 5580":          "1.22.0",
+    "Latitude 5590":          "1.19.0",
+    "Latitude 5591":          "1.19.0",
+    "Latitude 7200 2-in-1":   "1.17.0",
+    "Latitude 7210 2-in-1":   "1.15.0",
+    "Latitude 7212 Rugged":   "1.28.0",
+    "Latitude 7220 Rugged":   "1.17.0",
+    "Latitude 7220EX Rugged": "1.17.0",
+    "Latitude 7230 Rugged":   "1.10.0",
+    "Latitude 7280":          "1.22.1",
+    "Latitude 7285":          "1.13.0",
+    "Latitude 7290":          "1.19.0",
+    "Latitude 7300":          "1.21.0",
+    "Latitude 7310":          "1.15.0",
+    "Latitude 7320":          "1.16.0",
+    "Latitude 7320 Detachable":"1.12.0",
+    "Latitude 7330":          "1.10.0",
+    "Latitude 7340":          "1.4.1",
+    "Latitude 7340 Ultra-Light":"1.4.1",
+    "Latitude 7380":          "1.22.1",
+    "Latitude 7389":          "1.25.1",
+    "Latitude 7390":          "1.19.0",
+    "Latitude 7390 2-in-1":   "1.18.0",
+    "Latitude 7400":          "1.20.0",
+    "Latitude 7400 2-in-1":   "1.17.0",
+    "Latitude 7410":          "1.14.0",
+    "Latitude 7420":          "1.16.0",
+    "Latitude 7430":          "1.10.0",
+    "Latitude 7440":          "1.4.1",
+    "Latitude 7480":          "1.22.1",
+    "Latitude 7490":          "1.19.0",
+    "Latitude 9410":          "1.14.0",
+    "Latitude 9420":          "1.12.0",
+    "Latitude 9430":          "1.8.0",
+    "Latitude 9440":          "1.3.0",
+    "Latitude 9510":          "1.14.0",
+    "Latitude 9520":          "1.13.0",
+    // Precision Workstations
+    "Precision 3240 Compact": "1.12.0",
+    "Precision 3260 Compact": "1.8.0",
+    "Precision 3440":         "1.12.0",
+    "Precision 3450":         "1.14.0",
+    "Precision 3460":         "1.7.0",
+    "Precision 3470":         "1.12.0",
+    "Precision 3480":         "1.4.1",
+    "Precision 3520":         "1.22.0",
+    "Precision 3530":         "1.18.0",
+    "Precision 3540":         "1.17.0",
+    "Precision 3541":         "1.19.0",
+    "Precision 3550":         "1.16.0",
+    "Precision 3551":         "1.16.0",
+    "Precision 3560":         "1.15.0",
+    "Precision 3561":         "1.13.0",
+    "Precision 3571":         "1.10.0",
+    "Precision 3580":         "1.4.1",
+    "Precision 3581":         "1.4.1",
+    "Precision 3640":         "1.13.0",
+    "Precision 3650":         "1.14.0",
+    "Precision 3660":         "1.8.0",
+    "Precision 3680":         "1.2.0",
+    "Precision 5540":         "1.18.0",
+    "Precision 5550":         "1.12.0",
+    "Precision 5560":         "1.10.0",
+    "Precision 5570":         "1.10.0",
+    "Precision 5580":         "1.4.1",
+    "Precision 5750":         "1.14.0",
+    "Precision 5760":         "1.10.0",
+    "Precision 5770":         "1.10.0",
+    "Precision 5780":         "1.4.1",
+    "Precision 7540":         "1.20.0",
+    "Precision 7550":         "1.14.0",
+    "Precision 7560":         "1.10.0",
+    "Precision 7670":         "1.10.0",
+    "Precision 7680":         "1.4.1",
+    "Precision 7740":         "1.20.0",
+    "Precision 7750":         "1.14.0",
+    "Precision 7760":         "1.10.0",
+    "Precision 7770":         "1.10.0",
+    "Precision 7780":         "1.4.1",
+    // XPS
+    "XPS 13 9300":            "1.17.0",
+    "XPS 13 9305":            "1.9.0",
+    "XPS 13 9310":            "3.7.0",
+    "XPS 13 9315":            "1.7.0",
+    "XPS 13 9370":            "1.18.1",
+    "XPS 13 9380":            "1.18.1",
+    "XPS 13 2-in-1 7390":     "1.18.0",
+    "XPS 13 9310 2-in-1":     "2.8.0",
+    "XPS 15 9500":            "1.17.0",
+    "XPS 15 9510":            "1.12.0",
+    "XPS 15 9520":            "1.10.0",
+    "XPS 15 9570":            "1.19.1",
+    "XPS 15 9575":            "1.15.0",
+    "XPS 17 9700":            "1.17.0",
+    "XPS 17 9710":            "1.12.0",
+    "XPS 17 9720":            "1.10.0",
+    // Vostro
+    "Vostro 3400":            "1.15.0",
+    "Vostro 3401":            "1.15.0",
+    "Vostro 3420":            "1.11.0",
+    "Vostro 3490":            "1.18.0",
+    "Vostro 3491":            "1.18.0",
+    "Vostro 3500":            "1.15.0",
+    "Vostro 3501":            "1.15.0",
+    "Vostro 3510":            "1.15.0",
+    "Vostro 3520":            "1.11.0",
+    "Vostro 3590":            "1.18.0",
+    "Vostro 3591":            "1.18.0",
+    "Vostro 5300":            "1.22.0",
+    "Vostro 5301":            "1.22.0",
+    "Vostro 5310":            "1.13.0",
+    "Vostro 5320":            "1.10.0",
+    "Vostro 5390":            "1.22.0",
+    "Vostro 5391":            "1.22.0",
+    "Vostro 5401":            "1.15.0",
+    "Vostro 5410":            "1.13.0",
+    "Vostro 5420":            "1.10.0",
+    "Vostro 5490":            "1.18.0",
+    "Vostro 5501":            "1.15.0",
+    "Vostro 5510":            "1.13.0",
+    "Vostro 5520":            "1.10.0",
+    "Vostro 5590":            "1.18.0",
+    "Vostro 7500":            "1.14.0",
+    "Vostro 7510":            "1.13.0",
+    "Vostro 7520":            "1.10.0",
+    "Vostro 14 3420":         "1.11.0",
+    "Vostro 15 3520":         "1.11.0",
+  },
+
+  hp: {
+    // HP  (Source: HP Support ISH_13070353 — updated 2026)
+    // 304 models · End of Life entries excluded
+    "HP Collaboration G6 24 AIO with Zoom Rooms":              "02.24.00",
+    "HP Collaboration G6 27 AIO with Zoom Rooms":              "02.24.00",
+    "HP Collaboration G6 PC with Zoom Rooms":                  "02.24.00",
+    "HP Dragonfly 13.5 G4":                                    "01.10.00",
+    "HP Dragonfly Folio 13.5 G3":                              "01.16.00",
+    "HP Elite Dragonfly":                                      "01.34.00",
+    "HP Elite Dragonfly 13.5 G3":                              "01.16.00",
+    "HP Elite Dragonfly G2":                                   "01.22.00",
+    "HP Elite Dragonfly Max":                                  "01.22.00",
+    "HP Elite Mini 600 G9":                                    "02.19.01",
+    "HP Elite Mini 800 G9":                                    "02.19.01",
+    "HP Elite mt645 G7":                                       "01.22.00",
+    "HP Elite SFF 600 G9":                                     "02.19.01",
+    "HP Elite SFF 800 G9":                                     "02.19.01",
+    "HP Elite Slice":                                          "02.67",
+    "HP Elite Slice for Meetings Rooms G2 for Intel Unite":    "02.67",
+    "HP Elite Slice G2 - Audio Ready with Zoom Rooms":         "02.67",
+    "HP Elite Slice G2 - Partner Ready with Microsoft Teams Rooms": "02.67",
+    "HP Elite Slice G2 with Microsoft Teams Rooms":            "02.67",
+    "HP Elite Slice G2 with Zoom Rooms":                       "02.67",
+    "HP Elite Slice G2 with Zoom Rooms Audio Ready":           "02.67",
+    "HP Elite t655":                                           "01.14",
+    "HP Elite t755":                                           "01.08",
+    "HP Elite Tower 600 G9":                                   "02.19.01",
+    "HP Elite Tower 680 G9":                                   "02.19.01",
+    "HP Elite Tower 800 G9":                                   "02.19.01",
+    "HP Elite Tower 880 G9":                                   "02.19.01",
+    "HP Elite x2 1012 G1":                                     "01.60",
+    "HP Elite x2 G4":                                          "01.33.00",
+    "HP Elite x2 G4 Tablet":                                   "01.33.00",
+    "HP Elite x2 G8":                                          "01.22.01",
+    "HP Elite x360 1040 14 G10":                               "01.10.00",
+    "HP Elite x360 1040 14 inch G10 2-in-1 Notebook PC":       "01.10.00",
+    "HP Elite x360 1040 14 G9":                                "01.16.01",
+    "HP Elite x360 1040 14 inch G9 2-in-1 Notebook PC":        "01.16.01",
+    "HP Elite x360 830 13 G10":                                "01.10.00",
+    "HP Elite x360 830 G10 2-in-1":                            "01.11.00",
+    "HP Elite x360 830 13 inch G10 2-in-1 Notebook PC":        "01.11.00",
+    "HP Elite x360 830 13 G9":                                 "01.16.01",
+    "HP EliteBook 1040 14 G10":                                "01.10.00",
+    "HP EliteBook 1040 14 G9":                                 "01.16.01",
+    "HP EliteBook 630 13 G9":                                  "01.16.00",
+    "HP EliteBook 630 13.3 G10":                               "01.10.00",
+    "HP EliteBook 640 14 G10":                                 "01.10.00",
+    "HP EliteBook 640 14 G9":                                  "01.16.00",
+    "HP EliteBook 645 14 G10":                                 "01.11.01",
+    "HP EliteBook 645 14 G9":                                  "01.20.00",
+    "HP EliteBook 650 15.6 G10":                               "01.10.00",
+    "HP EliteBook 650 15.6 G9":                                "01.16.00",
+    "HP EliteBook 655 14 G9":                                  "01.20.00",
+    "HP EliteBook 655 15.6 G10":                               "01.11.01",
+    "HP EliteBook 735 G6":                                     "01.32.00",
+    "HP EliteBook 745 G6":                                     "01.32.00",
+    "HP EliteBook 8 Flip G1i 13 inch Notebook AI PC":          "01.04.02",
+    "HP EliteBook 830 13 G10":                                 "01.10.00",
+    "HP EliteBook 830 13 G9":                                  "01.16.01",
+    "HP EliteBook 830 G6":                                     "01.33.00",
+    "HP EliteBook 830 G7":                                     "01.22.00",
+    "HP EliteBook 830 G8":                                     "01.22.00",
+    "HP EliteBook 835 13 G10":                                 "01.10.03",
+    "HP EliteBook 835 13 G9":                                  "01.14.00",
+    "HP EliteBook 835 G7":                                     "01.22.00",
+    "HP EliteBook 835 G8":                                     "01.22.00",
+    "HP EliteBook 840 14 G10":                                 "01.10.00",
+    "HP EliteBook 840 14 G9":                                  "01.16.01",
+    "HP EliteBook 840 Aero G8":                                "01.22.00",
+    "HP EliteBook 840 G5":                                     "01.22.00",
+    "HP EliteBook 840 G6":                                     "01.33.00",
+    "HP EliteBook 840 G6 Healthcare Edition":                  "01.33.00",
+    "HP EliteBook 840 G7":                                     "01.22.00",
+    "HP EliteBook 840 G8":                                     "01.22.00",
+    "HP EliteBook 840 14 inch G11 Notebook PC":                "01.09.01",
+    "HP EliteBook 845 14 G10":                                 "01.10.03",
+    "HP EliteBook 845 14 G9":                                  "01.14.00",
+    "HP EliteBook 845 G7":                                     "01.22.00",
+    "HP EliteBook 845 G8":                                     "01.22.00",
+    "HP EliteBook 846 G6":                                     "01.33.00",
+    "HP EliteBook 846 G6 Healthcare Edition":                  "01.33.00",
+    "HP EliteBook 850 G5":                                     "01.22.00",
+    "HP EliteBook 850 G6":                                     "01.33.00",
+    "HP EliteBook 850 G7":                                     "01.22.00",
+    "HP EliteBook 850 G8":                                     "01.22.00",
+    "HP EliteBook 855 16 G9":                                  "01.14.00",
+    "HP EliteBook 855 G7":                                     "01.22.00",
+    "HP EliteBook 855 G8":                                     "01.22.00",
+    "HP EliteBook 860 16 G10":                                 "01.10.00",
+    "HP EliteBook 860 16 G9":                                  "01.16.01",
+    "HP EliteBook 865 14 G10":                                 "01.10.03",
+    "HP EliteBook x360 1030 G4":                               "01.33.00",
+    "HP EliteBook x360 1030 G7":                               "01.22.00",
+    "HP EliteBook x360 1030 G8":                               "01.22.00",
+    "HP EliteBook x360 1040 G6":                               "01.33.00",
+    "HP EliteBook x360 1040 G7":                               "01.22.00",
+    "HP EliteBook x360 1040 G8":                               "01.22.00",
+    "HP EliteBook x360 830 G6":                                "01.33.00",
+    "HP EliteBook x360 830 G7":                                "01.22.00",
+    "HP EliteBook x360 830 G8":                                "01.22.00",
+    "HP EliteBook x Flip G1i 14 inch Notebook Next Gen AI PC": "01.04.01",
+    "HP EliteDesk 705 G4 MT":                                  "02.27.00",
+    "HP EliteDesk 705 G4 MT Workstation Edition":              "02.27.00",
+    "HP EliteDesk 705 G5 DM":                                  "02.24.00",
+    "HP EliteDesk 705 G5 SFF":                                 "02.24.00",
+    "HP EliteDesk 8 Mini G1i Desktop AI PC":                   "02.04.11",
+    "HP EliteDesk 8 Tower G1i Desktop AI PC":                  "02.04.00",
+    "HP EliteDesk 800 35W G4 DM":                              "02.32.00",
+    "HP EliteDesk 800 65W G4 DM":                              "02.32.00",
+    "HP EliteDesk 800 95W G4 DM":                              "02.32.00",
+    "HP EliteDesk 800 G5 DM":                                  "02.24.00",
+    "HP EliteDesk 800 G4 SFF":                                 "02.31.00",
+    "HP EliteDesk 800 G5 SFF":                                 "02.24.00",
+    "HP EliteDesk 800 G5 Tower":                               "02.24.00",
+    "HP EliteDesk 800 G6 Mini":                                "02.24.00",
+    "HP EliteDesk 800 G6 SFF":                                 "02.24.00",
+    "HP EliteDesk 800 G6 Small Form Factor PC":                "02.24.00",
+    "HP EliteDesk 800 G6 Tower":                               "02.24.00",
+    "HP EliteDesk 800 G8 DM":                                  "02.20.00",
+    "HP EliteDesk 800 G8 SFF":                                 "02.20.00",
+    "HP EliteDesk 800 G8 Tower":                               "02.20.00",
+    "HP EliteDesk 805 G6 Mini":                                "02.20.00",
+    "HP EliteDesk 805 G6 SFF":                                 "02.20.00",
+    "HP EliteDesk 805 G8 DM":                                  "02.18.00",
+    "HP EliteDesk 805 G8 SFF":                                 "02.18.00",
+    "HP EliteDesk 880 G8 Tower":                               "02.20.00",
+    "HP EliteOne 1000 G2 AIO":                                 "02.32.00",
+    "HP EliteOne 800 G5 23.8 AIO":                             "02.24.00",
+    "HP EliteOne 800 G5 23.8 HC AIO":                          "02.24.00",
+    "HP EliteOne 800 G6 24 AIO":                               "02.24.00",
+    "HP EliteOne 800 G6 27 AIO":                               "02.24.00",
+    "HP EliteOne 800 G8 24 AIO":                               "02.20.00",
+    "HP EliteOne 800 G8 27 AIO":                               "02.20.00",
+    "HP EliteOne 840 23.8 G9":                                 "02.20.00",
+    "HP EliteOne 870 27 G9":                                   "02.20.00",
+    "HP Engage Flex Mini Retail System":                       "02.24.00",
+    "HP Engage Flex Pro G2 Retail System":                     "02.09.02",
+    "HP Engage Flex Pro Retail System":                        "02.32.00",
+    "HP Engage Flex Pro-C G2 Retail System":                   "02.09.02",
+    "HP Engage Flex Pro-C Retail System":                      "02.32.00",
+    "HP Engage Go 10 Mobile System":                           "01.22.00",
+    "HP Engage Go 13.5 Mobile System":                         "01.22.00",
+    "HP Engage Go Mobile System":                              "01.33.00",
+    "HP Engage One AIO System":                                "02.55",
+    "HP Engage One Pro DM System":                             "02.24.00",
+    "HP Mini Conferencing PC":                                 "02.19.01",
+    "HP Mini G2 Conferencing PC":                              "02.19.01",
+    "HP Mini IP Conferencing PC":                              "02.19.01",
+    "HP MP9 G4 Retail System":                                 "02.32.00",
+    "HP mt21":                                                 "01.35.01",
+    "HP mt22":                                                 "01.28.01",
+    "HP mt31":                                                 "01.35.01",
+    "HP mt32":                                                 "01.24.01",
+    "HP mt45":                                                 "01.34.01",
+    "HP mt46":                                                 "01.24.01",
+    "HP Presence 24 with Zoom Rooms":                          "02.20.00",
+    "HP Presence 27 with Zoom Rooms":                          "02.20.00",
+    "HP Presence Control Kit with Microsoft Teams Rooms":      "02.24.00",
+    "HP Presence Control Kit with Zoom Rooms":                 "02.24.00",
+    "HP Presence Control Plus Kit with MTR":                   "02.24.00",
+    "HP Presence Control Plus Kit with ZR":                    "02.24.00",
+    "HP Presence No Audio Control Kit with MTR":               "02.24.00",
+    "HP Presence No Audio Control Kit with ZR":                "02.24.00",
+    "HP Pro Mini 400 G9":                                      "02.20.00",
+    "HP Pro mt440 G3":                                         "01.18.00",
+    "HP Pro SFF 400 G9":                                       "02.19.01",
+    "HP Pro t550":                                             "01.12",
+    "HP Pro Tower 400 G9 PCI":                                 "02.19.01",
+    "HP Pro Tower 480 G9 PCI":                                 "02.19.01",
+    "HP Pro x360 435 13.3 G10":                                "01.11.01",
+    "HP Pro x360 435 G9":                                      "01.20.00",
+    "HP Pro x360 Fortis G10":                                  "01.15.01",
+    "HP Pro x360 Fortis G11":                                  "01.12.00",
+    "HP Pro x360 Fortis G9":                                   "01.15.00",
+    "HP ProBook 430 G6":                                       "01.33.00",
+    "HP ProBook 430 G7":                                       "01.26.00",
+    "HP ProBook 430 G8":                                       "01.22.00",
+    "HP ProBook 430 G9":                                       "01.16.00",
+    "HP ProBook 440 14 G10":                                   "01.10.00",
+    "HP ProBook 440 G6":                                       "01.33.00",
+    "HP ProBook 440 G7":                                       "01.26.00",
+    "HP ProBook 440 G8":                                       "01.22.00",
+    "HP ProBook 440 G9":                                       "01.16.00",
+    "HP ProBook 445 14 G10":                                   "01.11.01",
+    "HP ProBook 445 14 G9":                                    "01.20.00",
+    "HP ProBook 445 G7":                                       "01.22.00",
+    "HP ProBook 445 G8":                                       "01.22.00",
+    "HP ProBook 445r G6":                                      "01.34.00",
+    "HP ProBook 450 15.6 G10":                                 "01.10.00",
+    "HP ProBook 450 G6":                                       "01.33.00",
+    "HP ProBook 450 G7":                                       "01.26.00",
+    "HP ProBook 450 G8":                                       "01.22.00",
+    "HP ProBook 450 G9":                                       "01.16.00",
+    "HP ProBook 455 14 G9":                                    "01.20.00",
+    "HP ProBook 455 15.6 G10":                                 "01.11.01",
+    "HP ProBook 455 G7":                                       "01.22.00",
+    "HP ProBook 455 G8":                                       "01.22.00",
+    "HP ProBook 455r G6":                                      "01.34.00",
+    "HP ProBook 470 G3":                                       "01.62",
+    "HP ProBook 630 G8":                                       "01.22.00",
+    "HP ProBook 635 Aero G7":                                  "01.22.00",
+    "HP ProBook 635 Aero G8":                                  "01.22.00",
+    "HP ProBook 640 G5":                                       "01.33.00",
+    "HP ProBook 640 G7":                                       "01.22.00",
+    "HP ProBook 640 G8":                                       "01.22.00",
+    "HP ProBook 650 G5":                                       "01.33.00",
+    "HP ProBook 650 G7":                                       "01.22.00",
+    "HP ProBook 650 G8":                                       "01.22.00",
+    "HP ProBook Fortis G10":                                   "01.15.01",
+    "HP ProBook Fortis G9":                                    "01.15.00",
+    "HP ProBook x360 11 G5 EE":                                "01.22.00",
+    "HP ProBook x360 11 G6 EE":                                "01.23.00",
+    "HP ProBook x360 11 G7 EE":                                "01.22.00",
+    "HP ProBook x360 435 G7":                                  "01.22.00",
+    "HP ProBook x360 435 G8":                                  "01.22.00",
+    "HP ProDesk 400 G4 DM":                                    "02.31.00",
+    "HP ProDesk 400 G5 DM":                                    "02.24.00",
+    "HP ProDesk 400 G6 DM":                                    "02.24.00",
+    "HP ProDesk 400 G6 MT":                                    "02.24.00",
+    "HP ProDesk 400 G6 SFF":                                   "02.24.00",
+    "HP ProDesk 400 G7 Microtower":                            "02.24.00",
+    "HP ProDesk 400 G7 PCI Microtower":                        "02.24.00",
+    "HP ProDesk 400 G7 SFF":                                   "02.24.00",
+    "HP ProDesk 405 G4 DM":                                    "02.26.00",
+    "HP ProDesk 405 G6 DM":                                    "02.21.00",
+    "HP ProDesk 405 G8 DM":                                    "02.18.00",
+    "HP ProDesk 405 G8 SFF":                                   "02.18.00",
+    "HP ProDesk 480 G6 MT":                                    "02.24.00",
+    "HP ProDesk 600 G4 DM":                                    "02.32.00",
+    "HP ProDesk 600 G4 MT":                                    "02.30.00",
+    "HP ProDesk 600 G4 SFF":                                   "02.21.00",
+    "HP ProDesk 600 G5 DM":                                    "02.24.00",
+    "HP ProDesk 600 G5 MT":                                    "02.24.00",
+    "HP ProDesk 600 G5 PCI MT":                                "02.24.00",
+    "HP ProDesk 600 G5 SFF":                                   "02.24.00",
+    "HP ProDesk 600 G6 Microtower":                            "02.24.00",
+    "HP ProDesk 600 G6 Mini":                                  "02.24.00",
+    "HP ProDesk 600 G6 PCI Microtower":                        "02.24.00",
+    "HP ProDesk 600 G6 SFF":                                   "02.24.00",
+    "HP ProDesk 680 G6 PCI Microtower":                        "02.24.00",
+    "HP ProOne 400 G5 AIO":                                    "02.24.00",
+    "HP ProOne 400 G6 20 AIO":                                 "02.24.00",
+    "HP ProOne 400 G6 24 AIO":                                 "02.24.00",
+    "HP ProOne 440 23.8 G9":                                   "02.19.01",
+    "HP ProOne 440 G5 AIO":                                    "02.24.00",
+    "HP ProOne 440 G6 24 AIO":                                 "02.24.00",
+    "HP ProOne 600 G5 AIO":                                    "02.24.00",
+    "HP ProOne 600 G6 22 AIO":                                 "02.24.00",
+    "HP t430":                                                 "02.19",
+    "HP t530":                                                 "01.19",
+    "HP t628":                                                 "01.13",
+    "HP t630":                                                 "01.18",
+    "HP t638":                                                 "01.20",
+    "HP t640":                                                 "01.23",
+    "HP t740":                                                 "01.22",
+    "HP TZ655 Trusted Zero Client":                            "01.14",
+    "HP Z1 Entry Tower G5":                                    "02.24.00",
+    "HP Z1 Entry Tower G6":                                    "02.24.00",
+    "HP Z1 G8 Tower Desktop PC":                               "02.20.00",
+    "HP Z1 G9 Tower":                                          "02.19.01",
+    "HP Z2 G8 SFF Workstation Desktop PC":                     "01.06.12",
+    "HP Z2 G8 Tower Workstation Desktop PC":                   "01.06.12",
+    "HP Z2 Mini G4 Entry Workstation":                         "01.08.13",
+    "HP Z2 Mini G4 Performance Workstation":                   "01.08.13",
+    "HP Z2 Mini G5 Workstation":                               "01.04.20",
+    "HP Z2 Mini Workstation G9":                               "03.05.02",
+    "HP Z2 SFF G4 Workstation":                                "01.08.13",
+    "HP Z2 SFF G5 Workstation":                                "01.04.20",
+    "HP Z2 SFF Workstation G9":                                "03.05.02",
+    "HP Z2 Tower G4 Workstation":                              "01.08.13",
+    "HP Z2 Tower G5 Workstation":                              "01.04.20",
+    "HP Z2 Tower Workstation G9":                              "03.05.02",
+    "HP Z4 G4 Workstation":                                    "02.97",
+    "HP Z4 Rack G5 Workstation":                               "01.02.27",
+    "HP Z4 Workstation G5":                                    "01.02.30",
+    "HP Z6 Workstation G5":                                    "01.02.30",
+    "HP Z6 Workstation G5 A":                                  "01.02.05",
+    "HP Z8 Fury Workstation G5":                               "01.02.30",
+    "HP Z8 Workstation G5":                                    "01.02.29",
+    "HP ZBook 14u G6":                                         "01.33.00",
+    "HP ZBook 15 G6":                                          "01.33.00",
+    "HP ZBook 17 G6":                                          "01.33.00",
+    "HP ZBook Create G7":                                      "01.22.00",
+    "HP ZBook Firefly 14 G10":                                 "01.10.00",
+    "HP ZBook Firefly 14 G10 A":                               "01.10.03",
+    "HP ZBook Firefly 14 G7":                                  "01.22.00",
+    "HP ZBook Firefly 14 G8":                                  "01.22.00",
+    "HP ZBook Firefly 14 G9":                                  "01.16.01",
+    "HP ZBook Firefly 15 G7":                                  "01.22.00",
+    "HP ZBook Firefly 15.6 G8":                                "01.22.00",
+    "HP ZBook Firefly 15 inch G8 Mobile Workstation PC":       "01.23.00",
+    "HP ZBook Firefly 16 G10":                                 "01.10.00",
+    "HP ZBook Firefly 16 G9":                                  "01.16.01",
+    "HP ZBook Fury 15 G7":                                     "01.22.00",
+    "HP ZBook Fury 15.6 G8":                                   "01.22.00",
+    "HP ZBook Fury 16 G10":                                    "01.10.00",
+    "HP ZBook Fury 17 G7":                                     "01.22.00",
+    "HP ZBook Fury 17.3 G8":                                   "01.22.00",
+    "HP ZBook Fury G9":                                        "01.16.00",
+    "HP ZBook Power 15.6 G10":                                 "01.10.00",
+    "HP ZBook Power 15.6 G10 A":                               "01.10.00",
+    "HP ZBook Power 15.6 G8":                                  "01.22.00",
+    "HP ZBook Power 15.6 G9":                                  "01.16.00",
+    "HP ZBook Power 16 inch G11 Mobile Workstation PC":        "01.09.01",
+    "HP ZBook Power G7":                                       "01.22.00",
+    "HP ZBook Studio 15.6 G8":                                 "01.22.00",
+    "HP ZBook Studio 16 G10":                                  "01.10.00",
+    "HP ZBook Studio 16 G9":                                   "01.16.00",
+    "HP ZBook Studio G5":                                      "01.33.00",
+    "HP ZBook Studio G7":                                      "01.22.00",
+    "HP ZBook Studio x360 G5":                                 "01.33.00",
+    "HP ZBook X G1i 16 inch Mobile Workstation PC":            "01.05.02",
+    "HP Zhan 66 Pro 14 G4":                                    "01.22.00",
+    "HP Zhan 66 Pro 14 G5":                                    "01.16.00",
+    "HP Zhan 66 Pro A 14 G3":                                  "01.22.00",
+    "HP Zhan 66 Pro A 14 G4":                                  "01.22.00",
+    "HP Zhan 66 Pro A 14 G5":                                  "01.20.00",
+    "HP Zhan 66 Pro G2 AIO":                                   "02.24.00",
+    "HP Zhan 66 Pro G3 22 AIO":                                "02.24.00",
+    "HP Zhan 66 Pro G3 24 AIO":                                "02.24.00",
+    "HP ElitePad 1000 G2":                                     "01.48",
+    "HP Zhan 99 Pro 23.8 G9":                                  "02.19.01",
+    "HP Compaq 8200 Elite CMT PC":                             "EOL",
+    "HP ProDesk 600 G1 TWR":                                   "02.71",
+  },
+
+  // ---- MICROSOFT / SURFACE ------------------------------------------------
+  // Source: https://support.microsoft.com/en-us/surface/drivers-firmware/surface-secure-boot-certificates
+  // Updated April 2026
+  // "any" = device launched with 2023 CA already present (always compliant)
+  // "End of Life" = no BIOS update available; device cannot be made compliant
+  microsoft: {
+    "surface laptop 13-inch": "any",
+    "surface pro 12-inch": "any",
+    "surface laptop 5g for business": "any",
+    "surface laptop 7th edition": "any",
+    "surface laptop 7th edition intel processor": "any",
+    "surface laptop 7th edition snapdragon processor": "any",
+    "surface pro 11th edition": "any",
+    "surface pro 11th edition intel processor": "any",
+    "surface pro 11th edition 5g": "any",
+    "surface pro 11th edition snapdragon processor": "any",
+    "surface pro for business 11th edition with intel": "any",
+    "surface laptop 6 for business": "any",
+    "surface pro 10 with 5g": "any",
+    "surface pro 10 for business": "any",
+    "surface hub 31": "any",
+    "surface go 4": "8.200.143.0",
+    "surface laptop go 3": "10.200.143.0",
+    "surface laptop studio 2": "16.200.143.0",
+    "surface laptop 5": "9.200.143.0",
+    "surface pro 9": "12.200.143.0",
+    "surface pro 9 with 5g": "18.7.235.0",
+    "windows dev kit 2023": "12.6.235.0",
+    "surface studio 2+": "20.101.143.0",
+    "surface laptop go 2": "26.102.143.0",
+    "surface laptop se": "7.9.139.0",
+    "surface pro x wifi": "10.703.140.0",
+    "surface go 3": "11.200.143.0",
+    "surface pro 8": "23.200.143.0",
+    "surface laptop studio": "23.200.143.0",
+    "surface laptop 4": "23.200.143.0",
+    "surface laptop 4 intel": "23.200.143.0",
+    "surface laptop 4 amd": "4.200.140.0",
+    "surface pro 7+": "23.200.143.0",
+    "surface pro 7": "17.200.140.0",
+    "surface book 3": "17.200.140.0",
+    "surface book 2": "End of Life",
+  },
+
+  // ---- LENOVO ------------------------------------------------------------
+  // Source: https://support.lenovo.com/us/en/solutions/ht518129
+  // Updated April 2026
+  lenovo: {
+    "11e 5th gen": "1.24",
+    "11e yoga gen 6": "1.18",
+    "e14 gen 1": "1.31",
+    "e14 gen 2 amd": "1.31",
+    "e14 gen 2": "1.63",
+    "e14 gen 3 amd": "1.24",
+    "e14 gen 4": "1.33",
+    "e14 gen 4 amd": "1.20",
+    "e14 gen 5": "1.36",
+    "e14 gen 5 amd": "1.22",
+    "e14 gen 6": "1.16",
+    "e14 gen 6 amd": "1.12",
+    "e15 gen 1": "1.31",
+    "e15 gen 2 amd": "1.31",
+    "e15 gen 2": "1.63",
+    "e15 gen 3 amd": "1.24",
+    "e15 gen 4": "1.33",
+    "e15 gen 4 amd": "1.20",
+    "e16 gen 1 amd": "1.22",
+    "e16 gen 1 intel": "1.36",
+    "e16 gen 2 amd": "1.12",
+    "e16 gen 2 intel": "1.16",
+    "e490": "1.38",
+    "e490s": "1.38",
+    "e495": "1.30",
+    "e590": "1.38",
+    "e595": "1.30",
+    "ideacentre 3 07iab7": "1.50",
+    "ideacentre 3 07irb8": "1.74",
+    "ideacentre 5 14iab7": "1.85",
+    "ideacentre 5 14irb8": "1.74",
+    "ideacentre aio 3 24 irh9": "1.36",
+    "ideacentre mini 01irh10r": "1.20",
+    "ideacentre mini 01irh8": "1.29",
+    "ideacentre tower 08akp10": "1.30",
+    "ideacentre tower 08ias10": "1.18",
+    "ideacentre tower 08irh": "1.38",
+    "ideacentre tower 08irr9": "1.32",
+    "ideacentre tower 14irr9": "1.90",
+    "l13": "1.41",
+    "l13 2-in-1 gen 5": "1.07",
+    "l13 gen 2": "1.31",
+    "l13 gen 2 amd": "1.38",
+    "l13 gen 3": "1.23",
+    "l13 gen 3 amd": "1.25",
+    "l13 gen 4": "1.15",
+    "l13 gen 4 r27": "1.17",
+    "l13 gen 5": "1.07",
+    "l13 yoga": "1.41",
+    "l13 yoga gen 2": "1.31",
+    "l13 yoga gen 2 amd": "1.38",
+    "l13 yoga gen 3": "1.23",
+    "l13 yoga gen 3 amd": "1.25",
+    "l13 yoga gen 4": "1.15",
+    "l13 yoga gen 4 r27": "1.17",
+    "l14 gen 1": "1.24",
+    "l14 gen 1 amd": "1.39",
+    "l14 gen 2": "1.69",
+    "l14 gen 2 amd": "1.35",
+    "l14 gen 3": "1.35",
+    "l14 gen 3 amd": "1.31",
+    "l14 gen 4": "1.16",
+    "l14 gen 4 r24": "1.21",
+    "l14 gen 5": "1.08",
+    "l14 gen 5 amd": "1.32",
+    "l15 gen 1": "1.24",
+    "l15 gen 1 amd": "1.39",
+    "l15 gen 2": "1.69",
+    "l15 gen 2 amd": "1.35",
+    "l15 gen 3": "1.35",
+    "l15 gen 3 amd": "1.31",
+    "l15 gen 4": "1.16",
+    "l15 gen 4 r24": "1.21",
+    "l16 gen 1": "1.08",
+    "l16 gen 1 amd": "1.30",
+    "l380": "1.35",
+    "l380 yoga": "1.35",
+    "l390": "1.46",
+    "l490": "1.38",
+    "l590": "1.38",
+    "legion t5 26ara8": "1.56",
+    "legion t5 26irb8": "1.60",
+    "legion t5 26irx9": "1.22",
+    "legion t5 30agb10": "1.30",
+    "legion t5 30ias10": "1.24",
+    "legion t5 30iax10": "1.21",
+    "legion t7 34ias10": "1.32",
+    "legion t7 34irz8": "1.67",
+    "loq 17iax10": "1.32",
+    "loq tower 26adr10": "1.20",
+    "p1": "1.46",
+    "p1 gen 2": "1.50",
+    "p1 gen 3": "1.32",
+    "p1 gen 4": "1.27",
+    "p1 gen 5": "1.22",
+    "p1 gen 6": "1.20",
+    "p1 gen 7": "0.08",
+    "p14s gen 1 amd": "1.54",
+    "p14s gen 2": "1.61",
+    "p14s gen 2 n3w": "1.13",
+    "p14s gen 2 amd": "1.33",
+    "p14s gen 3": "1.38",
+    "p14s gen 3 amd": "1.62",
+    "p14s gen 4": "1.44",
+    "p14s gen 4 amd": "1.45",
+    "p14s gen 5": "1.24",
+    "p14s gen 5 amd": "1.16",
+    "p15 gen 1": "1.36",
+    "p15 gen 2": "1.33",
+    "p15s gen 2": "1.61",
+    "p15s gen 2 n3w": "1.13",
+    "p15v gen 1": "1.36",
+    "p15v gen 2": "1.26",
+    "p15v gen 3": "1.25",
+    "p15v gen 3 amd": "1.20",
+    "p16 gen 1": "1.28",
+    "p16 gen 2": "1.56",
+    "p16s gen 1": "1.18",
+    "p16s gen 1 amd": "1.62",
+    "p16s gen 2": "1.44",
+    "p16s gen 2 amd": "1.45",
+    "p16s gen 3": "1.24",
+    "p16v gen 1": "1.50",
+    "p16v gen 1 n3u": "1.30",
+    "p16v gen 2": "1.01",
+    "p17 gen 1": "1.36",
+    "p17 gen 2": "1.33",
+    "p43s": "1.82",
+    "p52": "1.53",
+    "p52s": "1.39",
+    "p53": "1.44",
+    "p53s": "1.82",
+    "p72": "1.53",
+    "p73": "1.44",
+    "s2 gen 3": "1.35",
+    "s2 gen 4": "1.46",
+    "s2 gen 9": "1.07",
+    "t14 gen 1": "1.31",
+    "t14 gen 1 amd": "1.54",
+    "t14 gen 2": "1.61",
+    "t14 gen 2 amd": "1.33",
+    "t14 gen 3": "1.38",
+    "t14 gen 3 amd": "1.62",
+    "t14 gen 4": "1.44",
+    "t14 gen 4 amd": "1.45",
+    "t14 gen 5": "1.01",
+    "t14 gen 5 amd": "1.16",
+    "t14p gen 2": "1.24",
+    "t14s gen 1": "1.36",
+    "t14s gen 1 amd": "1.54",
+    "t14s gen 2": "1.58",
+    "t14s gen 2 amd": "1.36",
+    "t14s gen 3": "1.43",
+    "t14s gen 3 amd": "1.50",
+    "t14s gen 4": "1.15",
+    "t14s gen 4 amd": "1.26",
+    "t14s gen 5": "1.05",
+    "t14s gen 6": "1.23",
+    "t14s gen 6 amd": "1.15",
+    "t15 gen 1": "1.31",
+    "t15 gen 2": "1.13",
+    "t15g gen 1": "1.36",
+    "t15g gen 2": "1.33",
+    "t15p gen 1": "1.36",
+    "t15p gen 3": "1.25",
+    "t16 gen 1": "1.18",
+    "t16 gen 1 amd": "1.62",
+    "t16 gen 2": "1.44",
+    "t16 gen 2 amd": "1.45",
+    "t16 gen 3": "1.01",
+    "t480": "1.51",
+    "t480s": "1.57",
+    "t490 cml": "1.24",
+    "t490": "1.82",
+    "t490s": "1.86",
+    "t495": "1.36",
+    "t495s": "1.32",
+    "t580": "1.39",
+    "t590": "1.82",
+    "thinkbook 13x g4 imh": "1.46",
+    "thinkbook 14 g7+ iah": "1.27",
+    "thinkbook 14/16 g5+ apo": "1.31",
+    "thinkbook 14/16 g6 abp": "1.37",
+    "thinkbook 14/16 g7 ahp": "1.38",
+    "thinkbook 14/16 g7 arp": "1.29",
+    "thinkbook 14/16 g7 yoga iml": "1.51",
+    "thinkbook 14/16 g7+ ahp": "1.12",
+    "thinkbook 14/16 g7+ akp": "1.17",
+    "thinkbook 14/16 g7+ asp": "1.29",
+    "thinkbook 14/16 g8 irl": "1.17",
+    "thinkbook 14/16 g8 yoga ial": "1.21",
+    "thinkbook 16 g7+ iah": "1.55",
+    "thinkbook 16p g6 adr": "1.23",
+    "thinkbook 16p g6 afr": "1.13",
+    "thinkbook 16p g6 iax": "1.31",
+    "thinkbook plus g6 rollable": "1.38",
+    "thinkbook x g2 iah": "1.28",
+    "thinkcentre m70a gen 3": "1.38",
+    "thinkcentre m70a gen 6": "1.22",
+    "thinkcentre m70q gen 3": "1.48",
+    "thinkcentre m70q gen 4": "1.43",
+    "thinkcentre m70q gen 5": "1.34",
+    "thinkcentre m70q gen 6": "1.29",
+    "thinkcentre m70s gen 3": "1.96",
+    "thinkcentre m70s gen 4": "1.64",
+    "thinkcentre m70s gen 6": "1.57",
+    "thinkcentre m70t gen 3": "1.96",
+    "thinkcentre m70t gen 4": "1.64",
+    "thinkcentre m70t gen 5": "1.90",
+    "thinkcentre m70t gen 6": "1.57",
+    "thinkcentre m720q": "1.0.0.120",
+    "thinkcentre m720s": "1.0.0.120",
+    "thinkcentre m720t": "1.0.0.120",
+    "thinkcentre m75q gen 2": "1.62",
+    "thinkcentre m75q gen 5": "1.29",
+    "thinkcentre m75s gen 5": "1.48",
+    "thinkcentre m75t gen 2": "1.88",
+    "thinkcentre m75t gen 5": "1.48",
+    "thinkcentre m90a": "1.102",
+    "thinkcentre m90a gen 2": "1.46",
+    "thinkcentre m90a gen 3": "1.37",
+    "thinkcentre m90a gen 6": "1.22",
+    "thinkcentre m90a pro gen 4": "1.56",
+    "thinkcentre m90a pro gen 6": "1.22",
+    "thinkcentre m90a-5": "1.34",
+    "thinkcentre m90n-1": "1.72",
+    "thinkcentre m90q gen 2": "1.68",
+    "thinkcentre m90q gen 3": "1.55",
+    "thinkcentre m90q gen 4": "86",
+    "thinkcentre m90q gen 5": "1.32",
+    "thinkcentre m90q gen 6": "1.38",
+    "thinkcentre m90q-1": "1.99",
+    "thinkcentre m90s gen 3": "1.96",
+    "thinkcentre m90s gen 4": "1.64",
+    "thinkcentre m90s gen 5": "1.122",
+    "thinkcentre m90t gen 3": "1.96",
+    "thinkcentre m90t gen 4": "1.64",
+    "thinkcentre m90t gen 5": "1.122",
+    "thinkcentre m920q": "1.0.0.120",
+    "thinkcentre m920s": "1.0.0.120",
+    "thinkcentre m920t": "1.0.0.120",
+    "thinkcentre m920x": "1.0.0.120",
+    "thinkcentre neo 30s gen 5": "1.38",
+    "thinkcentre neo 50a gen 5": "1.36",
+    "thinkcentre neo 50q gen 4": "1.29",
+    "thinkcentre neo 50q gen 5": "1.20",
+    "thinkcentre neo 50s gen 3": "1.50",
+    "thinkcentre neo 50s gen 4": "1.74",
+    "thinkcentre neo 50s gen 5": "1.32",
+    "thinkcentre neo 50s gen 6": "1.18",
+    "thinkcentre neo 50t gen 3": "1.85",
+    "thinkcentre neo 50t gen 4": "1.74",
+    "thinkcentre neo 50t gen 5": "1.90",
+    "thinkcentre neo 50t gen 6": "1.56",
+    "thinkcentre neo 55q gen 6": "1.19",
+    "thinkedge se10": "1.0.0.29",
+    "thinkedge se30": "1.0.0.64",
+    "thinkedge se50": "20.0.0.49",
+    "thinkpad e14 gen 1": "1.31",
+    "thinkpad e14 gen 2 amd": "1.31",
+    "thinkpad e14 gen 2": "1.63",
+    "thinkpad e14 gen 3 amd": "1.24",
+    "thinkpad e14 gen 4": "1.33",
+    "thinkpad e14 gen 4 amd": "1.20",
+    "thinkpad e14 gen 5": "1.36",
+    "thinkpad e14 gen 5 amd": "1.22",
+    "thinkpad e14 gen 6": "1.16",
+    "thinkpad e14 gen 6 amd": "1.12",
+    "thinkpad e15 gen 1": "1.31",
+    "thinkpad e15 gen 2 amd": "1.31",
+    "thinkpad e15 gen 2": "1.63",
+    "thinkpad e15 gen 3 amd": "1.24",
+    "thinkpad e15 gen 4": "1.33",
+    "thinkpad e15 gen 4 amd": "1.20",
+    "thinkpad e16 gen 1 amd": "1.22",
+    "thinkpad e16 gen 1 intel": "1.36",
+    "thinkpad e16 gen 2 amd": "1.12",
+    "thinkpad e16 gen 2 intel": "1.16",
+    "thinkpad e490": "1.38",
+    "thinkpad e490s": "1.38",
+    "thinkpad e495": "1.30",
+    "thinkpad e590": "1.38",
+    "thinkpad e595": "1.30",
+    "thinkpad l13": "1.41",
+    "thinkpad l13 2-in-1 gen 5": "1.07",
+    "thinkpad l13 gen 2": "1.31",
+    "thinkpad l13 gen 2 amd": "1.38",
+    "thinkpad l13 gen 3": "1.23",
+    "thinkpad l13 gen 3 amd": "1.25",
+    "thinkpad l13 gen 4": "1.15",
+    "thinkpad l13 gen 5": "1.07",
+    "thinkpad l13 yoga": "1.41",
+    "thinkpad l13 yoga gen 2": "1.31",
+    "thinkpad l13 yoga gen 2 amd": "1.38",
+    "thinkpad l13 yoga gen 3": "1.23",
+    "thinkpad l13 yoga gen 3 amd": "1.25",
+    "thinkpad l13 yoga gen 4": "1.15",
+    "thinkpad l14 gen 1": "1.24",
+    "thinkpad l14 gen 1 amd": "1.39",
+    "thinkpad l14 gen 2": "1.69",
+    "thinkpad l14 gen 2 amd": "1.35",
+    "thinkpad l14 gen 3": "1.35",
+    "thinkpad l14 gen 3 amd": "1.31",
+    "thinkpad l14 gen 4": "1.16",
+    "thinkpad l14 gen 5": "1.08",
+    "thinkpad l14 gen 5 amd": "1.32",
+    "thinkpad l15 gen 1": "1.24",
+    "thinkpad l15 gen 1 amd": "1.39",
+    "thinkpad l15 gen 2": "1.69",
+    "thinkpad l15 gen 2 amd": "1.35",
+    "thinkpad l15 gen 3": "1.35",
+    "thinkpad l15 gen 3 amd": "1.31",
+    "thinkpad l15 gen 4": "1.16",
+    "thinkpad l16 gen 1": "1.08",
+    "thinkpad l16 gen 1 amd": "1.30",
+    "thinkpad l380": "1.35",
+    "thinkpad l380 yoga": "1.35",
+    "thinkpad l390": "1.46",
+    "thinkpad l490": "1.38",
+    "thinkpad l590": "1.38",
+    "thinkpad p1": "1.46",
+    "thinkpad p1 gen 2": "1.50",
+    "thinkpad p1 gen 3": "1.32",
+    "thinkpad p1 gen 4": "1.27",
+    "thinkpad p1 gen 5": "1.22",
+    "thinkpad p1 gen 6": "1.20",
+    "thinkpad p1 gen 7": "0.08",
+    "thinkpad p14s gen 1 amd": "1.54",
+    "thinkpad p14s gen 2": "1.61",
+    "thinkpad p14s gen 2 amd": "1.33",
+    "thinkpad p14s gen 3": "1.38",
+    "thinkpad p14s gen 3 amd": "1.62",
+    "thinkpad p14s gen 4": "1.44",
+    "thinkpad p14s gen 4 amd": "1.45",
+    "thinkpad p14s gen 5": "1.24",
+    "thinkpad p14s gen 5 amd": "1.16",
+    "thinkpad p15 gen 1": "1.36",
+    "thinkpad p15 gen 2": "1.33",
+    "thinkpad p15s gen 2": "1.61",
+    "thinkpad p15v gen 1": "1.36",
+    "thinkpad p15v gen 2": "1.26",
+    "thinkpad p15v gen 3": "1.25",
+    "thinkpad p15v gen 3 amd": "1.20",
+    "thinkpad p16 gen 1": "1.28",
+    "thinkpad p16 gen 2": "1.56",
+    "thinkpad p16s gen 1": "1.18",
+    "thinkpad p16s gen 1 amd": "1.62",
+    "thinkpad p16s gen 2": "1.44",
+    "thinkpad p16s gen 2 amd": "1.45",
+    "thinkpad p16s gen 3": "1.24",
+    "thinkpad p16v gen 1": "1.50",
+    "thinkpad p16v gen 2": "1.01",
+    "thinkpad p17 gen 1": "1.36",
+    "thinkpad p17 gen 2": "1.33",
+    "thinkpad p43s": "1.82",
+    "thinkpad p52": "1.53",
+    "thinkpad p52s": "1.39",
+    "thinkpad p53": "1.44",
+    "thinkpad p53s": "1.82",
+    "thinkpad p72": "1.53",
+    "thinkpad p73": "1.44",
+    "thinkpad s2 gen 3": "1.35",
+    "thinkpad s2 gen 4": "1.46",
+    "thinkpad s2 gen 9": "1.07",
+    "thinkpad t14 gen 1": "1.31",
+    "thinkpad t14 gen 1 amd": "1.54",
+    "thinkpad t14 gen 2": "1.61",
+    "thinkpad t14 gen 2 amd": "1.33",
+    "thinkpad t14 gen 3": "1.38",
+    "thinkpad t14 gen 3 amd": "1.62",
+    "thinkpad t14 gen 4": "1.44",
+    "thinkpad t14 gen 4 amd": "1.45",
+    "thinkpad t14 gen 5": "1.01",
+    "thinkpad t14 gen 5 amd": "1.16",
+    "thinkpad t14p gen 2": "1.24",
+    "thinkpad t14s gen 1": "1.36",
+    "thinkpad t14s gen 1 amd": "1.54",
+    "thinkpad t14s gen 2": "1.58",
+    "thinkpad t14s gen 2 amd": "1.36",
+    "thinkpad t14s gen 3": "1.43",
+    "thinkpad t14s gen 3 amd": "1.50",
+    "thinkpad t14s gen 4": "1.15",
+    "thinkpad t14s gen 4 amd": "1.26",
+    "thinkpad t14s gen 5": "1.05",
+    "thinkpad t14s gen 6": "1.23",
+    "thinkpad t14s gen 6 amd": "1.15",
+    "thinkpad t15 gen 1": "1.31",
+    "thinkpad t15 gen 2": "1.13",
+    "thinkpad t15g gen 1": "1.36",
+    "thinkpad t15g gen 2": "1.33",
+    "thinkpad t15p gen 1": "1.36",
+    "thinkpad t15p gen 3": "1.25",
+    "thinkpad t16 gen 1": "1.18",
+    "thinkpad t16 gen 1 amd": "1.62",
+    "thinkpad t16 gen 2": "1.44",
+    "thinkpad t16 gen 2 amd": "1.45",
+    "thinkpad t16 gen 3": "1.01",
+    "thinkpad t480": "1.51",
+    "thinkpad t480s": "1.57",
+    "thinkpad t490": "1.82",
+    "thinkpad t490 cml": "1.24",
+    "thinkpad t490s": "1.86",
+    "thinkpad t495": "1.36",
+    "thinkpad t495s": "1.32",
+    "thinkpad t580": "1.39",
+    "thinkpad t590": "1.82",
+    "thinkpad thinkbook 13x g4 imh": "1.46",
+    "thinkpad thinkbook 14 g7+ iah": "1.27",
+    "thinkpad thinkbook 14/16 g5+ apo": "1.31",
+    "thinkpad thinkbook 14/16 g6 abp": "1.37",
+    "thinkpad thinkbook 14/16 g7 ahp": "1.38",
+    "thinkpad thinkbook 14/16 g7 arp": "1.29",
+    "thinkpad thinkbook 14/16 g7 yoga iml": "1.51",
+    "thinkpad thinkbook 14/16 g7+ ahp": "1.12",
+    "thinkpad thinkbook 14/16 g7+ akp": "1.17",
+    "thinkpad thinkbook 14/16 g7+ asp": "1.29",
+    "thinkpad thinkbook 14/16 g8 irl": "1.17",
+    "thinkpad thinkbook 14/16 g8 yoga ial": "1.21",
+    "thinkpad thinkbook 16 g7+ iah": "1.55",
+    "thinkpad thinkbook 16p g6 adr": "1.23",
+    "thinkpad thinkbook 16p g6 afr": "1.13",
+    "thinkpad thinkbook 16p g6 iax": "1.31",
+    "thinkpad thinkbook plus g6 rollable": "1.38",
+    "thinkpad thinkbook x g2 iah": "1.28",
+    "thinkpad thinkcentre m70a gen 3": "1.38",
+    "thinkpad thinkcentre m70a gen 6": "1.22",
+    "thinkpad thinkcentre m70q gen 3": "1.48",
+    "thinkpad thinkcentre m70q gen 4": "1.43",
+    "thinkpad thinkcentre m70q gen 5": "1.34",
+    "thinkpad thinkcentre m70q gen 6": "1.29",
+    "thinkpad thinkcentre m70s gen 3": "1.96",
+    "thinkpad thinkcentre m70s gen 4": "1.64",
+    "thinkpad thinkcentre m70s gen 6": "1.57",
+    "thinkpad thinkcentre m70t gen 3": "1.96",
+    "thinkpad thinkcentre m70t gen 4": "1.64",
+    "thinkpad thinkcentre m70t gen 5": "1.90",
+    "thinkpad thinkcentre m70t gen 6": "1.57",
+    "thinkpad thinkcentre m720q": "1.0.0.120",
+    "thinkpad thinkcentre m720s": "1.0.0.120",
+    "thinkpad thinkcentre m720t": "1.0.0.120",
+    "thinkpad thinkcentre m75q gen 2": "1.62",
+    "thinkpad thinkcentre m75q gen 5": "1.29",
+    "thinkpad thinkcentre m75s gen 5": "1.48",
+    "thinkpad thinkcentre m75t gen 2": "1.88",
+    "thinkpad thinkcentre m75t gen 5": "1.48",
+    "thinkpad thinkcentre m90a": "1.102",
+    "thinkpad thinkcentre m90a gen 2": "1.46",
+    "thinkpad thinkcentre m90a gen 3": "1.37",
+    "thinkpad thinkcentre m90a gen 6": "1.22",
+    "thinkpad thinkcentre m90a pro gen 4": "1.56",
+    "thinkpad thinkcentre m90a pro gen 6": "1.22",
+    "thinkpad thinkcentre m90a-5": "1.34",
+    "thinkpad thinkcentre m90n-1": "1.72",
+    "thinkpad thinkcentre m90q gen 2": "1.68",
+    "thinkpad thinkcentre m90q gen 3": "1.55",
+    "thinkpad thinkcentre m90q gen 4": "86",
+    "thinkpad thinkcentre m90q gen 5": "1.32",
+    "thinkpad thinkcentre m90q gen 6": "1.38",
+    "thinkpad thinkcentre m90q-1": "1.99",
+    "thinkpad thinkcentre m90s gen 3": "1.96",
+    "thinkpad thinkcentre m90s gen 4": "1.64",
+    "thinkpad thinkcentre m90s gen 5": "1.122",
+    "thinkpad thinkcentre m90t gen 3": "1.96",
+    "thinkpad thinkcentre m90t gen 4": "1.64",
+    "thinkpad thinkcentre m90t gen 5": "1.122",
+    "thinkpad thinkcentre m920q": "1.0.0.120",
+    "thinkpad thinkcentre m920s": "1.0.0.120",
+    "thinkpad thinkcentre m920t": "1.0.0.120",
+    "thinkpad thinkcentre m920x": "1.0.0.120",
+    "thinkpad thinkcentre neo 30s gen 5": "1.38",
+    "thinkpad thinkcentre neo 50a gen 5": "1.36",
+    "thinkpad thinkcentre neo 50q gen 4": "1.29",
+    "thinkpad thinkcentre neo 50q gen 5": "1.20",
+    "thinkpad thinkcentre neo 50s gen 3": "1.50",
+    "thinkpad thinkcentre neo 50s gen 4": "1.74",
+    "thinkpad thinkcentre neo 50s gen 5": "1.32",
+    "thinkpad thinkcentre neo 50s gen 6": "1.18",
+    "thinkpad thinkcentre neo 50t gen 3": "1.85",
+    "thinkpad thinkcentre neo 50t gen 4": "1.74",
+    "thinkpad thinkcentre neo 50t gen 5": "1.90",
+    "thinkpad thinkcentre neo 50t gen 6": "1.56",
+    "thinkpad thinkcentre neo 55q gen 6": "1.19",
+    "thinkpad thinkedge se10": "1.0.0.29",
+    "thinkpad thinkedge se30": "1.0.0.64",
+    "thinkpad thinkedge se50": "20.0.0.49",
+    "thinkpad thinkstation p2 tower": "1.0.0.118",
+    "thinkpad thinkstation p3 tiny": "1.89",
+    "thinkpad thinkstation p3 tower": "1.0.0.118",
+    "thinkpad thinkstation p3 ultra sff": "1.0.0.50",
+    "thinkpad thinkstation p320 sff": "10.0.0.105",
+    "thinkpad thinkstation p320 tower": "10.0.0.105",
+    "thinkpad thinkstation p330 sff": "10.0.0.120",
+    "thinkpad thinkstation p330 tiny": "1.0.0.120",
+    "thinkpad thinkstation p330 tower": "10.0.0.120",
+    "thinkpad thinkstation p340 sff": "1.0.0.95",
+    "thinkpad thinkstation p340 tiny": "1.98",
+    "thinkpad thinkstation p340 tower": "1.0.0.95",
+    "thinkpad thinkstation p348 tower": "1.0.0.73",
+    "thinkpad thinkstation p350 sff": "1.0.0.73",
+    "thinkpad thinkstation p350 tiny": "1.46",
+    "thinkpad thinkstation p350 tower": "1.0.0.73",
+    "thinkpad thinkstation p358 tower": "1.0.0.41",
+    "thinkpad thinkstation p360 tiny": "1.53",
+    "thinkpad thinkstation p360 tower": "1.96",
+    "thinkpad thinkstation p360 ultra": "1.0.0.57",
+    "thinkpad thinkstation p5": "1.0.0.39",
+    "thinkpad thinkstation p520": "1.0.0.112",
+    "thinkpad thinkstation p520c": "1.0.0.112",
+    "thinkpad thinkstation p620": "1.107",
+    "thinkpad thinkstation p7": "1.0.0.39",
+    "thinkpad thinkstation p720": "1.0.0.119",
+    "thinkpad thinkstation p8": "1.0.0.71",
+    "thinkpad thinkstation p920": "1.0.0.119",
+    "thinkpad thinkstation px": "1.35",
+    "thinkpad x1 2-in-1 gen 9": "1.23",
+    "thinkpad x1 carbon gen 10": "1.45",
+    "thinkpad x1 carbon gen 11": "1.26",
+    "thinkpad x1 carbon gen 12": "1.23",
+    "thinkpad x1 carbon gen 6": "1.63",
+    "thinkpad x1 carbon gen 7": "1.49",
+    "thinkpad x1 carbon gen 8": "1.35",
+    "thinkpad x1 carbon gen 9": "1.67",
+    "thinkpad x1 extreme": "1.46",
+    "thinkpad x1 extreme gen 2": "1.50",
+    "thinkpad x1 extreme gen 3": "1.32",
+    "thinkpad x1 extreme gen 4": "1.27",
+    "thinkpad x1 extreme gen 5": "1.22",
+    "thinkpad x1 fold 16 gen 1": "1.19",
+    "thinkpad x1 fold gen 1": "1.30",
+    "thinkpad x1 nano gen 1": "1.62",
+    "thinkpad x1 nano gen 2": "1.25",
+    "thinkpad x1 nano gen 3": "1.17",
+    "thinkpad x1 tablet gen 3": "1.51",
+    "thinkpad x1 titanium": "1.31",
+    "thinkpad x1 yoga gen 3": "1.53",
+    "thinkpad x1 yoga gen 4": "1.49",
+    "thinkpad x1 yoga gen 6": "1.67",
+    "thinkpad x1 yoga gen 7": "1.45",
+    "thinkpad x1 yoga gen 8": "1.26",
+    "thinkpad x12 detachable": "1.36",
+    "thinkpad x12 detachable gen 2": "1.10",
+    "thinkpad x13 2-in-1 gen 5": "1.08",
+    "thinkpad x13 amd gen 4": "1.34",
+    "thinkpad x13 gen 1": "1.36",
+    "thinkpad x13 gen 1 amd": "1.54",
+    "thinkpad x13 gen 2": "1.58",
+    "thinkpad x13 gen 2 amd": "1.36",
+    "thinkpad x13 gen 3": "1.43",
+    "thinkpad x13 gen 3 amd": "1.50",
+    "thinkpad x13 gen 4": "1.14",
+    "thinkpad x13 gen 5": "1.08",
+    "thinkpad x13 yoga gen 1": "1.51",
+    "thinkpad x13 yoga gen 2": "1.45",
+    "thinkpad x13 yoga gen 3": "1.18",
+    "thinkpad x13 yoga gen 4": "1.14",
+    "thinkpad x13s gen 1": "1.65",
+    "thinkpad x280": "1.53",
+    "thinkpad x380 yoga": "1.40",
+    "thinkpad x390": "1.31",
+    "thinkpad x390 yoga": "1.99",
+    "thinkpad x395": "1.32",
+    "thinkpad z13 gen 1": "1.71",
+    "thinkpad z13 gen 2": "1.30",
+    "thinkpad z16 gen 1": "1.71",
+    "thinkpad z16 gen 2": "1.30",
+    "thinkstation p2 tower": "1.0.0.118",
+    "thinkstation p3 tiny": "1.89",
+    "thinkstation p3 tower": "1.0.0.118",
+    "thinkstation p3 ultra sff": "1.0.0.50",
+    "thinkstation p320 sff": "10.0.0.105",
+    "thinkstation p320 tower": "10.0.0.105",
+    "thinkstation p330 sff": "10.0.0.120",
+    "thinkstation p330 tiny": "1.0.0.120",
+    "thinkstation p330 tower": "10.0.0.120",
+    "thinkstation p340 sff": "1.0.0.95",
+    "thinkstation p340 tiny": "1.98",
+    "thinkstation p340 tower": "1.0.0.95",
+    "thinkstation p348 tower": "1.0.0.73",
+    "thinkstation p350 sff": "1.0.0.73",
+    "thinkstation p350 tiny": "1.46",
+    "thinkstation p350 tower": "1.0.0.73",
+    "thinkstation p358 tower": "1.0.0.41",
+    "thinkstation p360 tiny": "1.53",
+    "thinkstation p360 tower": "1.96",
+    "thinkstation p360 ultra": "1.0.0.57",
+    "thinkstation p5": "1.0.0.39",
+    "thinkstation p520": "1.0.0.112",
+    "thinkstation p520c": "1.0.0.112",
+    "thinkstation p620": "1.107",
+    "thinkstation p7": "1.0.0.39",
+    "thinkstation p720": "1.0.0.119",
+    "thinkstation p8": "1.0.0.71",
+    "thinkstation p920": "1.0.0.119",
+    "thinkstation px": "1.35",
+    "x1 2-in-1 gen 9": "1.23",
+    "x1 carbon gen 10": "1.45",
+    "x1 carbon gen 11": "1.26",
+    "x1 carbon gen 12": "1.23",
+    "x1 carbon gen 6": "1.63",
+    "x1 carbon gen 7": "1.49",
+    "x1 carbon gen 7 n2h": "1.60",
+    "x1 carbon gen 8": "1.35",
+    "x1 carbon gen 9": "1.67",
+    "x1 extreme": "1.46",
+    "x1 extreme gen 2": "1.50",
+    "x1 extreme gen 3": "1.32",
+    "x1 extreme gen 4": "1.27",
+    "x1 extreme gen 5": "1.22",
+    "x1 fold 16 gen 1": "1.19",
+    "x1 fold gen 1": "1.30",
+    "x1 nano gen 1": "1.62",
+    "x1 nano gen 2": "1.25",
+    "x1 nano gen 3": "1.17",
+    "x1 tablet gen 3": "1.51",
+    "x1 titanium": "1.31",
+    "x1 yoga gen 3": "1.53",
+    "x1 yoga gen 4": "1.49",
+    "x1 yoga gen 4 n2h": "1.60",
+    "x1 yoga gen 6": "1.67",
+    "x1 yoga gen 7": "1.45",
+    "x1 yoga gen 8": "1.26",
+    "x12 detachable": "1.36",
+    "x12 detachable gen 2": "1.10",
+    "x13 2-in-1 gen 5": "1.08",
+    "x13 amd gen 4": "1.34",
+    "x13 gen 1": "1.36",
+    "x13 gen 1 amd": "1.54",
+    "x13 gen 2": "1.58",
+    "x13 gen 2 amd": "1.36",
+    "x13 gen 3": "1.43",
+    "x13 gen 3 amd": "1.50",
+    "x13 gen 4": "1.14",
+    "x13 gen 5": "1.08",
+    "x13 yoga gen 1": "1.51",
+    "x13 yoga gen 2": "1.45",
+    "x13 yoga gen 3": "1.18",
+    "x13 yoga gen 4": "1.14",
+    "x13s gen 1": "1.65",
+    "x280": "1.53",
+    "x380 yoga": "1.40",
+    "x390": "1.31",
+    "x390 n2j": "1.86",
+    "x390 yoga": "1.99",
+    "x395": "1.32",
+    "x395 amd": "1.32",
+    "yoga 11e 5th gen": "1.31",
+    "yoga gen 5": "1.35",
+    "z13 gen 1": "1.71",
+    "z13 gen 2": "1.30",
+    "z16 gen 1": "1.71",
+    "z16 gen 2": "1.30",
+  },
+};
+
+// ═══════════════════════════════════════════════════════════
+// LENOVO MACHINE TYPE LOOKUP
+// ConfigMgr usually reports product names (e.g. "ThinkPad T14 Gen 1"),
+// so the 3-stage name matching handles most cases. However, some Lenovo
+// devices report only the 4-char machine type code (e.g. "20S1") in
+// Win32_ComputerSystem.Model. This table is used as a fallback.
+// Source: Lenovo HT518129 (https://support.lenovo.com/solutions/ht518129)
+// ═══════════════════════════════════════════════════════════
+const LENOVO_MT = {
+  // ── 11e ──────────────────────────────────────────────────────────────────
+  '20LQ':'11e 5th gen',         '20LR':'11e 5th gen',
+  '20SE':'11e yoga gen 6',      '20SF':'11e yoga gen 6',
+  // ── ThinkPad E14 / E15 ───────────────────────────────────────────────────
+  '20RA':'e14 gen 1',           '20RB':'e14 gen 1',
+  '20TA':'e14 gen 2',           '20TB':'e14 gen 2',
+  '20T6':'e14 gen 2 amd',       '20T7':'e14 gen 2 amd',
+  '20YG':'e14 gen 3 amd',       '20YH':'e14 gen 3 amd',
+  '20YJ':'e14 gen 3 amd',       '20YK':'e14 gen 3 amd',
+  '21E3':'e14 gen 4',           '21E4':'e14 gen 4',
+  '21EB':'e14 gen 4 amd',       '21EC':'e14 gen 4 amd',
+  '21JK':'e14 gen 5',           '21JL':'e14 gen 5',
+  '21JR':'e14 gen 5 amd',       '21JS':'e14 gen 5 amd',
+  '21M7':'e14 gen 6',           '21M8':'e14 gen 6',
+  '21M3':'e14 gen 6 amd',       '21M4':'e14 gen 6 amd',
+  '20RD':'e15 gen 1',           '20RE':'e15 gen 1',
+  '20TD':'e15 gen 2',           '20TE':'e15 gen 2',
+  '20T8':'e15 gen 2 amd',       '20T9':'e15 gen 2 amd',
+  '21E6':'e15 gen 4',           '21E7':'e15 gen 4',
+  '21ED':'e15 gen 4 amd',       '21EE':'e15 gen 4 amd',
+  '21JN':'e16 gen 1 intel',     '21JQ':'e16 gen 1 intel',
+  '21JT':'e16 gen 1 amd',       '21JU':'e16 gen 1 amd',
+  '21MA':'e16 gen 2 intel',     '21MB':'e16 gen 2 intel',
+  '21M5':'e16 gen 2 amd',       '21M6':'e16 gen 2 amd',
+  '20N8':'e490',                '20N9':'e490',
+  '20NG':'e490s',
+  '20NE':'e495',
+  '20NB':'e590',                '20NC':'e590',
+  '20NF':'e595',
+  // ── ThinkPad L13 ─────────────────────────────────────────────────────────
+  '20R3':'l13',                 '20R4':'l13',
+  '20VH':'l13 gen 2',           '20VJ':'l13 gen 2',
+  '21AB':'l13 gen 2 amd',       '21AC':'l13 gen 2 amd',
+  '21B3':'l13 gen 3',           '21B4':'l13 gen 3',
+  '21B9':'l13 gen 3 amd',       '21BA':'l13 gen 3 amd',
+  '21FN':'l13 gen 4',           '21FQ':'l13 gen 4',
+  '21FG':'l13 gen 4 r27',       '21FH':'l13 gen 4 r27',
+  '21LB':'l13 gen 5',           '21LC':'l13 gen 5',
+  '21LM':'l13 2-in-1 gen 5',    '21LN':'l13 2-in-1 gen 5',
+  '20R5':'l13 yoga',            '20R6':'l13 yoga',
+  '20VK':'l13 yoga gen 2',      '20VL':'l13 yoga gen 2',
+  '21AD':'l13 yoga gen 2 amd',  '21AE':'l13 yoga gen 2 amd',
+  '21B5':'l13 yoga gen 3',      '21B6':'l13 yoga gen 3',
+  '21BB':'l13 yoga gen 3 amd',  '21BC':'l13 yoga gen 3 amd',
+  '21FR':'l13 yoga gen 4',      '21FS':'l13 yoga gen 4',
+  '21FJ':'l13 yoga gen 4 r27',  '21FK':'l13 yoga gen 4 r27',
+  // ── ThinkPad L14 ─────────────────────────────────────────────────────────
+  '20U1':'l14 gen 1',           '20U2':'l14 gen 1',
+  '20U5':'l14 gen 1 amd',       '20U6':'l14 gen 1 amd',
+  '20X1':'l14 gen 2',           '20X2':'l14 gen 2',
+  '20X5':'l14 gen 2 amd',       '20X6':'l14 gen 2 amd',
+  '21C1':'l14 gen 3',           '21C2':'l14 gen 3',
+  '21C5':'l14 gen 3 amd',       '21C6':'l14 gen 3 amd',
+  '21H5':'l14 gen 4',           '21H6':'l14 gen 4',
+  '21H1':'l14 gen 4 r24',       '21H2':'l14 gen 4 r24',
+  '21L1':'l14 gen 5',           '21L2':'l14 gen 5',
+  '21L5':'l14 gen 5 amd',       '21L6':'l14 gen 5 amd',
+  // ── ThinkPad L15 ─────────────────────────────────────────────────────────
+  '20U3':'l15 gen 1',           '20U4':'l15 gen 1',
+  '20U7':'l15 gen 1 amd',       '20U8':'l15 gen 1 amd',
+  '20X3':'l15 gen 2',           '20X4':'l15 gen 2',
+  '20X7':'l15 gen 2 amd',       '20X8':'l15 gen 2 amd',
+  '21C3':'l15 gen 3',           '21C4':'l15 gen 3',
+  '21C7':'l15 gen 3 amd',       '21C8':'l15 gen 3 amd',
+  '21H7':'l15 gen 4',           '21H8':'l15 gen 4',
+  '21H3':'l15 gen 4 r24',       '21H4':'l15 gen 4 r24',
+  // ── ThinkPad L16 / L380 / L390 / L490 / L590 ─────────────────────────────
+  '21L3':'l16 gen 1',           '21L4':'l16 gen 1',
+  '21L7':'l16 gen 1 amd',       '21L8':'l16 gen 1 amd',
+  '20M5':'l380',                '20M6':'l380',
+  '20M7':'l380 yoga',           '20M8':'l380 yoga',
+  '20NR':'l390',                '20NS':'l390',
+  '20Q5':'l490',                '20Q6':'l490',
+  '20Q7':'l590',                '20Q8':'l590',
+  // ── ThinkPad P1 ──────────────────────────────────────────────────────────
+  '20MD':'p1',                  '20ME':'p1',
+  '20QT':'p1 gen 2',            '20QU':'p1 gen 2',
+  '20TH':'p1 gen 3',            '20TJ':'p1 gen 3',
+  '20Y3':'p1 gen 4',            '20Y4':'p1 gen 4',
+  '21DC':'p1 gen 5',            '21DD':'p1 gen 5',
+  '21FV':'p1 gen 6',            '21FW':'p1 gen 6',
+  '21KV':'p1 gen 7',            '21KW':'p1 gen 7',
+  // ── ThinkPad P14s / P15 / P15s / P15v ────────────────────────────────────
+  '20Y1':'p14s gen 1 amd',      '20Y2':'p14s gen 1 amd',
+  '20VX':'p14s gen 2',          '20VY':'p14s gen 2',
+  '21A0':'p14s gen 2 amd',      '21A1':'p14s gen 2 amd',
+  '21AK':'p14s gen 3',          '21AL':'p14s gen 3',
+  '21J5':'p14s gen 3 amd',      '21J6':'p14s gen 3 amd',
+  '21HF':'p14s gen 4',          '21HG':'p14s gen 4',
+  '21K5':'p14s gen 4 amd',      '21K6':'p14s gen 4 amd',
+  '21G2':'p14s gen 5',          '21G3':'p14s gen 5',
+  '21ME':'p14s gen 5 amd',      '21MF':'p14s gen 5 amd',
+  '20ST':'p15 gen 1',           '20SU':'p15 gen 1',
+  '20YQ':'p15 gen 2',           '20YR':'p15 gen 2',
+  '20W6':'p15s gen 2',          '20W7':'p15s gen 2',
+  '20TQ':'p15v gen 1',          '20TR':'p15v gen 1',
+  '21A9':'p15v gen 2',          '21AA':'p15v gen 2',
+  '21D8':'p15v gen 3',          '21D9':'p15v gen 3',
+  '21EM':'p15v gen 3 amd',      '21EN':'p15v gen 3 amd',
+  // ── ThinkPad P16 / P17 ───────────────────────────────────────────────────
+  '21D6':'p16 gen 1',           '21D7':'p16 gen 1',
+  '21FA':'p16 gen 2',           '21FB':'p16 gen 2',
+  '21BT':'p16s gen 1',          '21BU':'p16s gen 1',
+  '21CK':'p16s gen 1 amd',      '21CL':'p16s gen 1 amd',
+  '21HK':'p16s gen 2',          '21HL':'p16s gen 2',
+  '21K9':'p16s gen 2 amd',      '21KA':'p16s gen 2 amd',
+  '21KS':'p16s gen 3',          '21KT':'p16s gen 3',
+  '21FE':'p16v gen 1',          '21FF':'p16v gen 1',
+  '21FC':'p16v gen 1 n3u',      '21FD':'p16v gen 1 n3u',
+  '21KX':'p16v gen 2',          '21KY':'p16v gen 2',
+  '20SN':'p17 gen 1',           '20SQ':'p17 gen 1',
+  '20YU':'p17 gen 2',           '20YV':'p17 gen 2',
+  // ── ThinkPad P legacy ────────────────────────────────────────────────────
+  '20RH':'p43s',                '20RJ':'p43s',
+  '20M9':'p52',                 '20MA':'p52',
+  '20LB':'p52s',                '20LC':'p52s',
+  '20QN':'p53',                 '20QQ':'p53',
+  '20N6':'p53s',                '20N7':'p53s',
+  '20MB':'p72',                 '20MC':'p72',
+  '20QR':'p73',                 '20QS':'p73',
+  // ── ThinkPad S2 ──────────────────────────────────────────────────────────
+  '20L1':'s2 gen 3',
+  '20NV':'s2 gen 4',
+  '21LQ':'s2 gen 9',
+  // ── ThinkPad T14 ─────────────────────────────────────────────────────────
+  '20S0':'t14 gen 1',           '20S1':'t14 gen 1',
+  '20UD':'t14 gen 1 amd',       '20UE':'t14 gen 1 amd',
+  '20W0':'t14 gen 2',           '20W1':'t14 gen 2',
+  '20XK':'t14 gen 2 amd',       '20XL':'t14 gen 2 amd',
+  '21AH':'t14 gen 3',           '21AJ':'t14 gen 3',
+  '21CF':'t14 gen 3 amd',       '21CG':'t14 gen 3 amd',
+  '21HD':'t14 gen 4',           '21HE':'t14 gen 4',
+  '21K3':'t14 gen 4 amd',       '21K4':'t14 gen 4 amd',
+  '21ML':'t14 gen 5',           '21MM':'t14 gen 5',
+  '21MC':'t14 gen 5 amd',       '21MD':'t14 gen 5 amd',
+  '21KU':'t14p gen 2',
+  // ── ThinkPad T14s ────────────────────────────────────────────────────────
+  '20T0':'t14s gen 1',          '20T1':'t14s gen 1',
+  '20UH':'t14s gen 1 amd',      '20UJ':'t14s gen 1 amd',
+  '20WM':'t14s gen 2',          '20WN':'t14s gen 2',
+  '20XF':'t14s gen 2 amd',      '20XG':'t14s gen 2 amd',
+  '21BR':'t14s gen 3',          '21BS':'t14s gen 3',
+  '21CQ':'t14s gen 3 amd',      '21CR':'t14s gen 3 amd',
+  '21F6':'t14s gen 4',          '21F7':'t14s gen 4',
+  '21F8':'t14s gen 4 amd',      '21F9':'t14s gen 4 amd',
+  '21LS':'t14s gen 5',          '21LT':'t14s gen 5',
+  '21N1':'t14s gen 6',          '21N2':'t14s gen 6',
+  '21M1':'t14s gen 6 amd',      '21M2':'t14s gen 6 amd',
+  // ── ThinkPad T15 / T15g / T15p ───────────────────────────────────────────
+  '20S6':'t15 gen 1',           '20S7':'t15 gen 1',
+  '20W4':'t15 gen 2',           '20W5':'t15 gen 2',
+  '20UR':'t15g gen 1',          '20US':'t15g gen 1',
+  '20YS':'t15g gen 2',          '20YT':'t15g gen 2',
+  '20TN':'t15p gen 1',          '20TM':'t15p gen 1',
+  '21DA':'t15p gen 3',          '21DB':'t15p gen 3',
+  // ── ThinkPad T16 ─────────────────────────────────────────────────────────
+  '21BV':'t16 gen 1',           '21BW':'t16 gen 1',
+  '21CH':'t16 gen 1 amd',       '21CJ':'t16 gen 1 amd',
+  '21HH':'t16 gen 2',           '21HJ':'t16 gen 2',
+  '21K7':'t16 gen 2 amd',       '21K8':'t16 gen 2 amd',
+  '21MN':'t16 gen 3',           '21MQ':'t16 gen 3',
+  // ── ThinkPad T480 / T480s / T490 era / T580 / T590 ───────────────────────
+  '20L5':'t480',                '20L6':'t480',
+  '20L7':'t480s',               '20L8':'t480s',
+  '20N2':'t490',  '20N3':'t490', '20Q9':'t490', '20QH':'t490',
+  '20RY':'t490 cml',            '20RX':'t490 cml',
+  '20NX':'t490s',               '20NY':'t490s',
+  '20NJ':'t495',                '20NK':'t495',
+  '20QJ':'t495s',               '20QK':'t495s',
+  '20L9':'t580',                '20LA':'t580',
+  '20N4':'t490',                '20N5':'t490',
+  // ── ThinkPad X1 Carbon ───────────────────────────────────────────────────
+  '20KH':'x1 carbon gen 6',     '20KG':'x1 carbon gen 6',
+  '20R1':'x1 carbon gen 7',     '20R2':'x1 carbon gen 7',
+  '20QD':'x1 carbon gen 7 n2h', '20QE':'x1 carbon gen 7 n2h',
+  '20U9':'x1 carbon gen 8',     '20UA':'x1 carbon gen 8',
+  '20XW':'x1 carbon gen 9',     '20XX':'x1 carbon gen 9',
+  '21CB':'x1 carbon gen 10',    '21CC':'x1 carbon gen 10',
+  '21HM':'x1 carbon gen 11',    '21HN':'x1 carbon gen 11',
+  '21KC':'x1 carbon gen 12',    '21KD':'x1 carbon gen 12',
+  '21KE':'x1 2-in-1 gen 9',     '21KF':'x1 2-in-1 gen 9',
+  // ── ThinkPad X1 Extreme ──────────────────────────────────────────────────
+  '20MF':'x1 extreme',          '20MG':'x1 extreme',
+  '20QV':'x1 extreme gen 2',    '20QW':'x1 extreme gen 2',
+  '20TK':'x1 extreme gen 3',    '20TL':'x1 extreme gen 3',
+  '20Y5':'x1 extreme gen 4',    '20Y6':'x1 extreme gen 4',
+  '21DE':'x1 extreme gen 5',    '21DF':'x1 extreme gen 5',
+  // ── ThinkPad X1 Fold / Nano / Tablet / Titanium ───────────────────────────
+  '20RK':'x1 fold gen 1',       '20RL':'x1 fold gen 1',
+  '21ES':'x1 fold 16 gen 1',    '21ET':'x1 fold 16 gen 1',
+  '20UN':'x1 nano gen 1',       '20UQ':'x1 nano gen 1',
+  '21E8':'x1 nano gen 2',       '21E9':'x1 nano gen 2',
+  '21K1':'x1 nano gen 3',       '21K2':'x1 nano gen 3',
+  '20KJ':'x1 tablet gen 3',     '20KK':'x1 tablet gen 3',
+  '20QA':'x1 titanium',         '20QB':'x1 titanium',
+  // ── ThinkPad X1 Yoga ─────────────────────────────────────────────────────
+  '20LD':'x1 yoga gen 3',  '20LE':'x1 yoga gen 3',
+  '20LF':'x1 yoga gen 3',  '20LG':'x1 yoga gen 3',
+  '20SA':'x1 yoga gen 4',       '20SB':'x1 yoga gen 4',
+  '20QF':'x1 yoga gen 4 n2h',   '20QG':'x1 yoga gen 4 n2h',
+  '20XY':'x1 yoga gen 6',       '20Y0':'x1 yoga gen 6',
+  '21CD':'x1 yoga gen 7',       '21CE':'x1 yoga gen 7',
+  '21HQ':'x1 yoga gen 8',       '21HR':'x1 yoga gen 8',
+  // ── ThinkPad X12 / X13 ───────────────────────────────────────────────────
+  '20UW':'x12 detachable',      '20UV':'x12 detachable',
+  '21LK':'x12 detachable gen 2','21LL':'x12 detachable gen 2',
+  '20WK':'x13',                 '20WL':'x13',
+  '20XH':'x13 gen 2',           '20XJ':'x13 gen 2',
+  '20XM':'x13 gen 2 amd',       '20XN':'x13 gen 2 amd',
+  '21BS':'x13 gen 3',
+  '21CM':'x13 gen 3 amd',       '21CN':'x13 gen 3 amd',
+  '21EX':'x13 gen 4',           '21EY':'x13 gen 4',
+  '21LU':'x13 gen 5',           '21LV':'x13 gen 5',
+  '21J3':'x13 amd gen 4',       '21J4':'x13 amd gen 4',
+  '21LW':'x13 2-in-1 gen 5',    '21LX':'x13 2-in-1 gen 5',
+  '20SX':'x13 yoga gen 1',      '20SY':'x13 yoga gen 1',
+  '20W8':'x13 yoga gen 2',      '20W9':'x13 yoga gen 2',
+  '21AW':'x13 yoga gen 3',      '21AX':'x13 yoga gen 3',
+  '21F2':'x13 yoga gen 4',      '21F3':'x13 yoga gen 4',
+  '21BX':'x13s gen 1',          '21BY':'x13s gen 1',
+  // ── ThinkPad X280 / X380 / X390 / X395 ───────────────────────────────────
+  '20KE':'x280',                '20KF':'x280',
+  '20LH':'x380 yoga',           '20LJ':'x380 yoga',
+  '20SC':'x390',                '20SD':'x390',
+  '20Q0':'x390 n2j',            '20Q1':'x390 n2j',
+  '20NN':'x390 yoga',           '20NQ':'x390 yoga',
+  '20NL':'x395 amd',            '20NM':'x395 amd',
+  // ── ThinkPad Yoga / Z series ──────────────────────────────────────────────
+  '20LM':'yoga 11e 5th gen',    '20LN':'yoga 11e 5th gen',
+  '20UB':'yoga gen 5',          '20UC':'yoga gen 5',
+  '21D2':'z13 gen 1',           '21D3':'z13 gen 1',
+  '21JV':'z13 gen 2',           '21JW':'z13 gen 2',
+  '21D4':'z16 gen 1',           '21D5':'z16 gen 1',
+  '21JX':'z16 gen 2',           '21JY':'z16 gen 2',
+  // ── ThinkBook ────────────────────────────────────────────────────────────
+  '21KR':'thinkbook 13x g4 imh','21NW':'thinkbook 13x g4 imh',
+  '21TK':'thinkbook 14 g7+ iah',
+  '21TL':'thinkbook 16 g7+ iah',
+  '21J1':'thinkbook 14/16 g5+ apo','21J2':'thinkbook 14/16 g5+ apo',
+  '21KJ':'thinkbook 14/16 g6 abp','21KK':'thinkbook 14/16 g6 abp',
+  '83CA':'thinkbook 14/16 g6 abp','83CB':'thinkbook 14/16 g6 abp',
+  '21MT':'thinkbook 14/16 g7 ahp','21MU':'thinkbook 14/16 g7 ahp',
+  '83G6':'thinkbook 14/16 g7 ahp','83G7':'thinkbook 14/16 g7 ahp',
+  '21MV':'thinkbook 14/16 g7 arp','21MW':'thinkbook 14/16 g7 arp',
+  '21MR':'thinkbook 14/16 g7 yoga iml','21MS':'thinkbook 14/16 g7 yoga iml',
+  '83G4':'thinkbook 14/16 g7 yoga iml','83G5':'thinkbook 14/16 g7 yoga iml',
+  '21KL':'thinkbook 14/16 g7 yoga iml','21MX':'thinkbook 14/16 g7 yoga iml',
+  '21U4':'thinkbook 14/16 g7+ ahp','21U6':'thinkbook 14/16 g7+ ahp',
+  '21TH':'thinkbook 14/16 g7+ akp','21TJ':'thinkbook 14/16 g7+ akp',
+  '21Q4':'thinkbook 14/16 g7+ asp','21Q5':'thinkbook 14/16 g7+ asp',
+  '21SG':'thinkbook 14/16 g8 irl','21SH':'thinkbook 14/16 g8 irl',
+  '83MH':'thinkbook 14/16 g8 irl','83MJ':'thinkbook 14/16 g8 irl',
+  '21TV':'thinkbook 14/16 g8 irl','21TW':'thinkbook 14/16 g8 irl',
+  '21SJ':'thinkbook 14/16 g8 yoga ial','21SK':'thinkbook 14/16 g8 yoga ial',
+  '83ML':'thinkbook 14/16 g8 yoga ial','83MK':'thinkbook 14/16 g8 yoga ial',
+  '21SQ':'thinkbook 14/16 g8 yoga ial',
+  '21U0':'thinkbook 16p g6 adr',
+  '21U1':'thinkbook 16p g6 afr',
+  '21R0':'thinkbook 16p g6 iax',
+  '21TR':'thinkbook plus g6 rollable',
+  '21TU':'thinkbook x g2 iah',
+};
+
+// BIOS-family disambiguation: same 4-char MT code, different BIOS families → different min versions.
+// Key format: "MT_BIOSPREFIX" where BIOSPREFIX = first 5 chars of the raw BIOSVersion string.
+const LENOVO_MT_BIOS = {
+  '20VX_N3WET': 'p14s gen 2 n3w',  // P14s Gen 2 N3WET platform → min 1.13
+  '20VY_N3WET': 'p14s gen 2 n3w',
+  '20W6_N3WET': 'p15s gen 2 n3w',  // P15s Gen 2 N3WET platform → min 1.13
+  '20W7_N3WET': 'p15s gen 2 n3w',
+  // N34ET variants fall through to LENOVO_MT → 'p14s gen 2' / 'p15s gen 2' (1.61)
+};
+
+// ═══════════════════════════════════════════════════════════
+// BIOS VERSION NORMALIZATION (same as Intune tool)
+// ═══════════════════════════════════════════════════════════
+function normalizeBIOS(raw) {
+  if (!raw) return null;
+  let s = raw.trim();
+  // HP format: "{FamilyCode} Ver. {version}" or "{FamilyCode} v{version}"
+  // e.g. "N85 Ver. 01.57", "Q70 Ver. 01.32.00", "J01 v02.33"
+  // The family code is 2-4 uppercase alphanumeric chars followed by a space.
+  const hpMatch = s.match(/^[A-Z0-9]{2,4}\s+(?:Ver\.\s*|v)(\d[\d.]+)/i);
+  if (hpMatch) return hpMatch[1];
+  // Strip leading vendor prefixes: "ver.", "version", "bios v", "rev.", bare "v" before digit
+  s = s.replace(/^(ver(?:sion)?\.?\s*|bios\s*v?|rev\.?\s*|v\s*(?=\d))/i, '');
+  // Dell: trailing "(A00)" style annotation
+  s = s.replace(/\s*\([^)]*\)$/, '');
+  // Lenovo: drop trailing non-version junk after first space
+  // Only strip if the next char is not a digit (avoids stripping "1.2 SP1" etc.)
+  s = s.replace(/\s+[^.\d].*$/, '');
+  // HP: sometimes bare "F.xx" — normalise to numeric "0.xx"
+  if (/^F\.\d+$/i.test(s)) s = '0.' + s.split('.')[1];
+  return s.trim() || null;
+}
+
+// Numeric multi-part version comparison: "1.2.3" vs "1.2.4"
+function parseVerParts(v) {
+  return (v || '').split(/[.\-]/).map(p => {
+    const n = parseInt(p, 10);
+    return isNaN(n) ? p : n;
+  });
+}
+
+function compareVersions(installed, minimum) {
+  if (!installed || !minimum) return null;
+  const a = parseVerParts(installed);
+  const b = parseVerParts(minimum);
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const ai = a[i] ?? 0, bi = b[i] ?? 0;
+    if (typeof ai === 'number' && typeof bi === 'number') {
+      if (ai < bi) return -1;
+      if (ai > bi) return 1;
+    } else {
+      const s = String(ai).localeCompare(String(bi), undefined, { numeric: true });
+      if (s !== 0) return s;
+    }
+  }
+  return 0;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODEL MATCHING — 3-stage: normalize → substring → Jaccard
+// ═══════════════════════════════════════════════════════════
+function normalizeModel(m) {
+  return (m || '').toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function jaccard(a, b) {
+  const sa = new Set(a.split(' ').filter(Boolean));
+  const sb = new Set(b.split(' ').filter(Boolean));
+  if (!sa.size || !sb.size) return 0;
+  let inter = 0;
+  for (const w of sa) if (sb.has(w)) inter++;
+  return inter / (sa.size + sb.size - inter);
+}
+
+function lookupBIOS(manufacturer, model, rawBios) {
+  const mfgLower = (manufacturer || '').toLowerCase();
+  let vendor = null;
+  if (mfgLower.includes('dell'))   vendor = 'dell';
+  else if (mfgLower.includes('hp') || mfgLower.includes('hewlett')) vendor = 'hp';
+  else if (mfgLower.includes('lenovo')) vendor = 'lenovo';
+  if (!vendor) return { minVersion: null, matchedModel: null };
+
+  const db = BIOS_DB[vendor];
+  const normModel = normalizeModel(model);
+
+  // Stage 1: exact (case-insensitive)
+  for (const [k, v] of Object.entries(db)) {
+    if (normalizeModel(k) === normModel) return { minVersion: v, matchedModel: k };
+  }
+  // Stage 2: substring containment
+  let subMatch = null, subKey = null, subLen = 0;
+  for (const [k, v] of Object.entries(db)) {
+    const nk = normalizeModel(k);
+    if (normModel.includes(nk) || nk.includes(normModel)) {
+      if (k.length > subLen) { subLen = k.length; subMatch = v; subKey = k; }
+    }
+  }
+  if (subMatch) return { minVersion: subMatch, matchedModel: subKey };
+
+  // Stage 3: Jaccard fuzzy ≥ 60%
+  let bestScore = 0, bestMin = null, bestKey = null;
+  for (const [k, v] of Object.entries(db)) {
+    const score = jaccard(normModel, normalizeModel(k));
+    if (score > bestScore) { bestScore = score; bestMin = v; bestKey = k; }
+  }
+  if (bestScore >= 0.60) return { minVersion: bestMin, matchedModel: bestKey };
+
+  // Stage 4 (Lenovo only): MT code fallback.
+  // ConfigMgr usually reports product names, but some devices expose only the
+  // 4-char machine type code in Win32_ComputerSystem.Model (e.g. "20S1").
+  if (vendor === 'lenovo') {
+    const mt = (model || '').replace(/\s+/g, '').toUpperCase().substring(0, 4);
+
+    // BIOS-family disambiguation: same MT code can have different min versions
+    // depending on the BIOS platform. Use the first 5 chars of the raw BIOSVersion
+    // string as the platform identifier.
+    const biosFamily = (rawBios || '').replace(/\s+/g, '').toUpperCase().substring(0, 5);
+    const compositeKey = mt + '_' + biosFamily;
+    const compositeDbKey = biosFamily ? LENOVO_MT_BIOS[compositeKey] : null;
+
+    const dbKey = compositeDbKey || LENOVO_MT[mt];
+    if (dbKey && db[dbKey]) {
+      return { minVersion: db[dbKey], matchedModel: dbKey + ' (MT:' + mt + ')' };
+    }
+  }
+
+  return { minVersion: null, matchedModel: null };
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let rawData   = [];   // parsed device records
+let processed = [];   // with BIOS compliance computed
+let filtered  = [];   // after UI filters
+let sortKey   = 'status';
+let sortDir   = 'desc';
+let csvHeaders = [];
+let isCsvMode  = false;
+// Secure Boot cross-reference map: ComputerName (uppercase) → 'compliant' | 'non-compliant'
+let sbMap = {};
+let sbLoaded = false;
+
+// ═══════════════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════════════
+function setStatus(msg, type = 'info') {
+  const bar = document.getElementById('statusBar');
+  bar.className = 'show ' + type;
+  bar.innerHTML = msg;
+}
+function clearStatus() {
+  const bar = document.getElementById('statusBar');
+  bar.className = '';
+  bar.innerHTML = '';
+}
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════════════
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const tabBar = tab.closest('.tab-bar');
+    tabBar.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const container = tab.closest('.tab-bar').parentElement;
+    container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    container.querySelector('#tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// FILE UPLOAD
+// ═══════════════════════════════════════════════════════════
+const dropZone  = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+// click handled by onclick attribute on drop zone div
+function handleDrop(e) { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); }
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+
+// SB drop zone
+const sbDropZone  = document.getElementById('sbDropZone');
+const sbFileInput = document.getElementById('sbFileInput');
+sbDropZone.addEventListener('dragover', e => { e.preventDefault(); sbDropZone.classList.add('drag-over'); });
+sbDropZone.addEventListener('dragleave', () => sbDropZone.classList.remove('drag-over'));
+sbDropZone.addEventListener('drop', e => {
+  e.preventDefault(); sbDropZone.classList.remove('drag-over');
+  handleSBFile(e.dataTransfer.files[0]);
+});
+sbFileInput.addEventListener('change', () => handleSBFile(sbFileInput.files[0]));
+
+function handleFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      if (ext === 'json') {
+        loadJSON(e.target.result, file.name);
+      } else if (ext === 'csv') {
+        loadCSV(e.target.result, file.name);
+      } else {
+        setStatus('❌ Unsupported file type. Use .json or .csv', 'error');
+      }
+    } catch (err) {
+      setStatus('❌ Parse error: ' + escHtml(err.message), 'error');
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function loadJSON(text, filename) {
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error('Invalid JSON'); }
+  if (!Array.isArray(data)) throw new Error('Expected a JSON array of device objects');
+  rawData = data;
+  isCsvMode = false;
+  document.getElementById('csvOptions').style.display = 'none';
+  markLoaded(filename, rawData.length);
+}
+
+// RFC 4180-compliant CSV parser
+function parseCSV(text) {
+  const rows = [];
+  let i = 0, n = text.length;
+  while (i < n) {
+    const row = [];
+    while (i < n) {
+      if (text[i] === '"') {
+        i++; let field = '';
+        while (i < n) {
+          if (text[i] === '"' && text[i+1] === '"') { field += '"'; i += 2; }
+          else if (text[i] === '"') { i++; break; }
+          else { field += text[i++]; }
+        }
+        row.push(field);
+      } else {
+        let field = '';
+        while (i < n && text[i] !== ',' && text[i] !== '\n' && text[i] !== '\r') {
+          field += text[i++];
+        }
+        row.push(field.trim());
+      }
+      if (i < n && text[i] === ',') { i++; continue; }
+      break;
+    }
+    if (i < n && text[i] === '\r') i++;
+    if (i < n && text[i] === '\n') i++;
+    if (row.length > 0 && !(row.length === 1 && row[0] === '')) rows.push(row);
+  }
+  return rows;
+}
+
+function loadCSV(text, filename) {
+  const rows = parseCSV(text);
+  if (rows.length < 2) throw new Error('CSV appears empty');
+  csvHeaders = rows[0];
+  rawData = rows.slice(1).map(r => {
+    const obj = {};
+    csvHeaders.forEach((h, i) => { obj[h] = r[i] ?? ''; });
+    return obj;
+  });
+  isCsvMode = true;
+
+  // Auto-map columns
+  populateCSVSelects(csvHeaders);
+  document.getElementById('csvOptions').style.display = 'block';
+  markLoaded(filename, rawData.length);
+}
+
+const COL_HINTS = {
+  name:  ['name','computername','device','hostname','computer'],
+  mfg:   ['manufacturer','vendor','make','mfg'],
+  model: ['model'],
+  bios:  ['bios','smbios','biosversion','firmware'],
+  date:  ['biosdate','releasedate','biosreleasedate','date'],
+  scan:  ['lasthardwarescan','lasthwscan','hwscan','lastscan'],
+  csp:   ['cspversion','cspver','computerproduct','type1','sbkpfv3'],
+};
+
+function bestMatch(headers, hints) {
+  const norm = h => h.toLowerCase().replace(/[^a-z0-9]/g,'');
+  for (const hint of hints) {
+    for (let i = 0; i < headers.length; i++) {
+      if (norm(headers[i]).includes(hint)) return i;
+    }
+  }
+  return 0;
+}
+
+function populateCSVSelects(headers) {
+  const optHTML = ['<option value="">(none)</option>',
+    ...headers.map((h,i) => `<option value="${i}">${escHtml(h)}</option>`)].join('');
+  const ids = ['csvColName','csvColMfg','csvColModel','csvColBios','csvColDate','csvColScan','csvColCSP'];
+  const hintKeys = ['name','mfg','model','bios','date','scan','csp'];
+  ids.forEach((id, j) => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = optHTML;
+    const best = bestMatch(headers, COL_HINTS[hintKeys[j]]);
+    sel.value = String(best);
+  });
+}
+
+function markLoaded(filename, count) {
+  dropZone.classList.add('loaded');
+  document.getElementById('uploadStatus').textContent =
+    `✓ ${filename} · ${count} rows`;
+  document.getElementById('btnAnalyze').disabled = false;
+  setStatus(`📂 Loaded <strong>${escHtml(filename)}</strong> · ${count} records. Click <em>Run Analysis</em> to continue.`, 'info');
+}
+
+// ═══════════════════════════════════════════════════════════
+// ANALYSIS
+// ═══════════════════════════════════════════════════════════
+// btnAnalyze wired via onclick attribute
+document.getElementById('btnReset').addEventListener('click', resetAll);
+
+function getCSVRecord(row) {
+  const getVal = id => {
+    const sel = document.getElementById(id);
+    const idx = parseInt(sel.value, 10);
+    if (isNaN(idx) || sel.value === '') return '';
+    return (csvHeaders[idx] && row[csvHeaders[idx]]) || '';
+  };
+  return {
+    ComputerName:     getVal('csvColName'),
+    Manufacturer:     getVal('csvColMfg'),
+    Model:            getVal('csvColModel'),
+    BIOSVersion:      getVal('csvColBios'),
+    BIOSReleaseDate:  getVal('csvColDate'),
+    LastHardwareScan: getVal('csvColScan'),
+    CSPVersion:       getVal('csvColCSP'),
+  };
+}
+
+// Returns true if the device is made by HP / Hewlett-Packard.
+// Used to gate the SBKPFV3 Secure Boot readiness check (HP-specific).
+function isHPDevice(d) {
+  const mfg = (d.Manufacturer || '').toLowerCase();
+  return mfg.includes('hp') || mfg.includes('hewlett');
+}
+
+// Returns true if the device is a virtual machine and should be excluded
+// from BIOS compliance analysis (VMs cannot receive BIOS updates).
+// Detection signals (case-insensitive):
+//   · Model contains "virtual machine"  → generic string used by Hyper-V / VirtualBox
+//   · BIOSVersion contains "hyper-v"    → Microsoft Hyper-V BIOS string
+//   · Manufacturer contains "vmware"    → catches "VMware, Inc."
+//   · Model contains "vmware"           → catches "VMware7,1", "VMware Virtual Platform", etc.
+function isVirtualMachine(d) {
+  const model = (d.Model        || '').toLowerCase();
+  const bios  = (d.BIOSVersion  || '').toLowerCase();
+  const mfg   = (d.Manufacturer || '').toLowerCase();
+  return model.includes('virtual machine')
+      || bios.includes('hyper-v')
+      || mfg.includes('vmware')
+      || model.includes('vmware');
+}
+
+function runAnalysis() {
+  if (!rawData.length) { setStatus('❌ No data loaded', 'error'); return; }
+
+  const devices = isCsvMode
+    ? rawData.map(r => getCSVRecord(r))
+    : rawData.map(r => ({
+        ComputerName:     r.ComputerName || r.Name || r.name || '',
+        Manufacturer:     r.Manufacturer || r.manufacturer || '',
+        Model:            r.Model || r.model || '',
+        BIOSVersion:      r.BIOSVersion || r.biosVersion || r.BIOS || '',
+        BIOSReleaseDate:  r.BIOSReleaseDate || r.biosReleaseDate || '',
+        LastHardwareScan: r.LastHardwareScan || r.lastHardwareScan || '',
+        CSPVersion:       r.CSPVersion || r.cspVersion || r.CSPversion || '',
+      }));
+
+  // Exclude virtual machines — they cannot receive BIOS updates
+  const physicalDevices = devices.filter(d => !isVirtualMachine(d));
+  vmExcludedCount = devices.length - physicalDevices.length;
+
+  processed = physicalDevices.map(d => {
+    const normBios = normalizeBIOS(d.BIOSVersion);
+    const { minVersion, matchedModel } = lookupBIOS(d.Manufacturer, d.Model, d.BIOSVersion);
+    let status = 'unknown';
+    if (minVersion === 'End of Life') {
+      // Device has reached End of Life — no BIOS update available
+      status = 'eol';
+    } else if (normBios && minVersion) {
+      const cmp = compareVersions(normBios, minVersion);
+      if (cmp === null) status = 'unknown';
+      else status = cmp >= 0 ? 'ok' : 'bad';
+    }
+    const key = (d.ComputerName || '').toUpperCase();
+    const secureBoot = sbLoaded ? (sbMap[key] || 'unknown') : undefined;
+    // SBKPFV3 Secure Boot readiness check for HP devices.
+    // Win32_ComputerSystemProduct.Version (CSPVersion) contains "SBKPFV3"
+    // when the BIOS already supports the new Secure Boot certificates.
+    let sbkpfv3 = undefined;
+    const cspVer = (d.CSPVersion || '').trim();
+    if (isHPDevice(d)) {
+      sbkpfv3 = cspVer
+        ? (cspVer.toUpperCase().includes('SBKPFV3') ? 'ready' : 'needed')
+        : 'nodata';
+    }
+    return { ...d, normBios, minVersion, matchedModel, status,
+             ...(sbLoaded          ? { secureBoot } : {}),
+             ...(sbkpfv3 !== undefined ? { sbkpfv3 }   : {}) };
+  });
+
+  // Show SBKPFV3 UI when at least one device has CSP version data
+  cspDataAvailable = processed.some(d => (d.CSPVersion || '').trim() !== '');
+
+  buildFilters();
+  applyFilters();
+  updateStats();
+  showResults();
+  document.getElementById('btnReset').style.display = '';
+  const vmNote = vmExcludedCount > 0
+    ? ` · ${vmExcludedCount} VM${vmExcludedCount > 1 ? 's' : ''} excluded` : '';
+  setStatus(`✅ Analysis complete · ${processed.length} devices processed${vmNote}`, 'success');
+}
+
+function updateStats() {
+  const total = processed.length;
+  const ok    = processed.filter(d => d.status === 'ok').length;
+  const bad   = processed.filter(d => d.status === 'bad').length;
+  const unk   = processed.filter(d => d.status === 'unknown').length;
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statOk').textContent    = ok;
+  document.getElementById('statBad').textContent   = bad;
+  document.getElementById('statUnk').textContent   = unk;
+  const pct = n => total ? Math.round(n/total*100) + '%' : '–';
+  document.getElementById('statOkPct').textContent  = pct(ok);
+  document.getElementById('statBadPct').textContent = pct(bad);
+
+  // VM exclusion tile
+  const vmCard = document.getElementById('statVMCard');
+  if (vmExcludedCount > 0) {
+    document.getElementById('statVM').textContent    = vmExcludedCount;
+    document.getElementById('statVMSub').textContent = 'not analysed';
+    vmCard.style.display = '';
+  } else {
+    vmCard.style.display = 'none';
+  }
+
+  if (sbLoaded) {
+    const sbOk  = processed.filter(d => d.secureBoot === 'compliant').length;
+    const sbBad = processed.filter(d => d.secureBoot === 'non-compliant').length;
+    document.getElementById('statSBOk').textContent     = sbOk;
+    document.getElementById('statSBBad').textContent    = sbBad;
+    document.getElementById('statSBOkPct').textContent  = pct(sbOk);
+    document.getElementById('statSBBadPct').textContent = pct(sbBad);
+  }
+
+  // SBKPFV3 tiles — shown when CSP version data is present
+  const hpDevices  = processed.filter(d => d.sbkpfv3 !== undefined);
+  const sbkpReady  = hpDevices.filter(d => d.sbkpfv3 === 'ready').length;
+  const sbkpNeeded = hpDevices.filter(d => d.sbkpfv3 === 'needed').length;
+  const sbkpTotal  = hpDevices.length;
+  const sbkpPct    = n => sbkpTotal ? Math.round(n / sbkpTotal * 100) + '%' : '–';
+  if (cspDataAvailable) {
+    document.getElementById('statSBKPReady').textContent     = sbkpReady;
+    document.getElementById('statSBKPNeeded').textContent    = sbkpNeeded;
+    document.getElementById('statSBKPReadyPct').textContent  = sbkpPct(sbkpReady);
+    document.getElementById('statSBKPNeededPct').textContent = sbkpPct(sbkpNeeded);
+    document.getElementById('statSBKPReadyCard').style.display  = '';
+    document.getElementById('statSBKPNeededCard').style.display = '';
+    document.getElementById('thSBKP').style.display   = '';
+    document.getElementById('fSBKPCol').style.display  = '';
+  } else {
+    document.getElementById('statSBKPReadyCard').style.display  = 'none';
+    document.getElementById('statSBKPNeededCard').style.display = 'none';
+    document.getElementById('thSBKP').style.display   = 'none';
+    document.getElementById('fSBKPCol').style.display  = 'none';
+  }
+}
+
+function buildFilters() {
+  const mfgs = [...new Set(processed.map(d => d.Manufacturer).filter(Boolean))].sort();
+  const sel = document.getElementById('fMfg');
+  sel.innerHTML = '<option value="">All</option>' +
+    mfgs.map(m => `<option value="${escHtml(m)}">${escHtml(m)}</option>`).join('');
+}
+
+function showResults() {
+  document.getElementById('statsSection').classList.add('show');
+  document.getElementById('filterSection').classList.add('show');
+  document.getElementById('tableSection').classList.add('show');
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILTERS & SORT
+// ═══════════════════════════════════════════════════════════
+function applyFilters() {
+  const search    = document.getElementById('fSearch').value.toLowerCase();
+  const mfg       = document.getElementById('fMfg').value;
+  const status    = document.getElementById('fStatus').value;
+  const dateFrom  = document.getElementById('fDateFrom').value;
+  const sbFilter  = document.getElementById('fSB').value;
+  const sbkpFilter = document.getElementById('fSBKP').value;
+
+  filtered = processed.filter(d => {
+    if (search && !(d.ComputerName||'').toLowerCase().includes(search) &&
+                  !(d.Model||'').toLowerCase().includes(search)) return false;
+    if (mfg && d.Manufacturer !== mfg) return false;
+    if (status && d.status !== status) return false;
+    if (dateFrom && d.BIOSReleaseDate && d.BIOSReleaseDate < dateFrom) return false;
+    if (sbFilter && sbLoaded) {
+      const sb = d.secureBoot || 'unknown';
+      if (sb !== sbFilter) return false;
+    }
+    if (sbkpFilter && cspDataAvailable) {
+      if ((d.sbkpfv3 || '') !== sbkpFilter) return false;
+    }
+    return true;
+  });
+
+  sortFiltered();
+  renderTable();
+}
+
+function clearFilters() {
+  document.getElementById('fSearch').value = '';
+  document.getElementById('fMfg').value = '';
+  document.getElementById('fStatus').value = '';
+  document.getElementById('fDateFrom').value = '';
+  document.getElementById('fSB').value = '';
+  document.getElementById('fSBKP').value = '';
+  applyFilters();
+}
+
+function sortTable(key) {
+  if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  else { sortKey = key; sortDir = key === 'status' ? 'desc' : 'asc'; }
+  document.querySelectorAll('th').forEach(th => {
+    th.classList.remove('sort-asc','sort-desc');
+  });
+  const colKeys = ['ComputerName','Manufacturer','Model','BIOSVersion','minVersion',
+                   'matchedModel','status','BIOSReleaseDate','LastHardwareScan','secureBoot','sbkpfv3'];
+  const idx = colKeys.indexOf(key);
+  if (idx >= 0) {
+    const ths = document.querySelectorAll('thead th');
+    if (ths[idx]) ths[idx].classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+  }
+  sortFiltered();
+  renderTable();
+}
+
+function sortFiltered() {
+  const STATUS_ORDER = { bad: 0, unknown: 1, ok: 2 };
+  filtered.sort((a, b) => {
+    let av = a[sortKey] ?? '', bv = b[sortKey] ?? '';
+    if (sortKey === 'status') { av = STATUS_ORDER[av] ?? 1; bv = STATUS_ORDER[bv] ?? 1; }
+    const cmp = typeof av === 'number'
+      ? av - bv
+      : String(av).localeCompare(String(bv), undefined, { numeric: true });
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER TABLE
+// ═══════════════════════════════════════════════════════════
+const STATUS_CONFIG = {
+  ok:      { cls: 'badge-ok',      label: 'Up to date' },
+  bad:     { cls: 'badge-bad',     label: 'Update required' },
+  unknown: { cls: 'badge-unknown', label: 'Not checked' },
+  eol:     { cls: 'badge-eol',     label: 'End of Life' },
+};
+
+function renderTable() {
+  document.getElementById('countShown').textContent = filtered.length;
+  document.getElementById('countTotal').textContent = processed.length;
+
+  const tbody = document.getElementById('tableBody');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px;">No devices match the current filters</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(d => {
+    const sc = STATUS_CONFIG[d.status] || STATUS_CONFIG.unknown;
+    const statusBadge = `<span class="badge ${sc.cls}">${sc.label}</span>`;
+    const biosBadge   = d.normBios
+      ? `<span class="badge badge-bios">${escHtml(d.normBios)}</span>`
+      : `<span style="color:var(--muted);font-size:.75rem;">—</span>`;
+    const minBadge    = d.minVersion
+      ? `<span style="color:var(--muted);font-family:var(--mono);font-size:.75rem;">${escHtml(d.minVersion)}</span>`
+      : `<span style="color:var(--border);">—</span>`;
+    const matchedCell = d.matchedModel
+      ? `<span style="color:var(--muted);font-size:.73rem;" title="${escHtml(d.matchedModel)}">${escHtml(d.matchedModel)}</span>`
+      : `<span style="color:var(--border);">—</span>`;
+
+    let sbCell = '';
+    if (sbLoaded) {
+      const sb = d.secureBoot || 'unknown';
+      if (sb === 'compliant') {
+        sbCell = `<td><span class="badge badge-sb-ok">Compliant</span></td>`;
+      } else if (sb === 'non-compliant') {
+        sbCell = `<td><span class="badge badge-sb-bad">Non-Compliant</span></td>`;
+      } else {
+        sbCell = `<td><span class="badge badge-sb-unknown">Not in report</span></td>`;
+      }
+    }
+
+    let sbkpCell = '';
+    if (cspDataAvailable) {
+      const sp = d.sbkpfv3;
+      if (sp === 'ready') {
+        sbkpCell = `<td><span class="badge badge-sbkp-ready">SBKPFV3 Ready</span></td>`;
+      } else if (sp === 'needed') {
+        sbkpCell = `<td><span class="badge badge-sbkp-needed">Update Needed</span></td>`;
+      } else if (sp === 'nodata') {
+        sbkpCell = `<td><span class="badge badge-sbkp-nodata">No Data</span></td>`;
+      } else {
+        sbkpCell = `<td style="color:var(--text-tertiary);">—</td>`;
+      }
+    }
+
+    return `<tr>
+      <td class="col-name">${escHtml(d.ComputerName||'—')}</td>
+      <td class="col-muted">${escHtml(d.Manufacturer||'—')}</td>
+      <td class="col-wrap">${escHtml(d.Model||'—')}</td>
+      <td>${biosBadge}</td>
+      <td>${minBadge}</td>
+      <td>${matchedCell}</td>
+      <td>${statusBadge}</td>
+      <td class="col-muted">${escHtml(d.BIOSReleaseDate||'—')}</td>
+      <td class="col-muted">${escHtml(d.LastHardwareScan||'—')}</td>
+      ${sbCell}
+      ${sbkpCell}
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// CSV EXPORT
+// ═══════════════════════════════════════════════════════════
+function exportCSV() {
+  if (!filtered.length) return;
+  const header = ['Computer Name','Manufacturer','Model',
+    'BIOS (installed)','BIOS (installed raw)','BIOS (minimum)',
+    'DB Model (matched)','Status','BIOS Release Date','Last HW Scan'];
+  if (sbLoaded) header.push('Secure Boot');
+  if (cspDataAvailable) { header.push('CSP Version'); header.push('SBKPFV3 Status'); }
+
+  const rows = [header, ...filtered.map(d => {
+    const row = [
+      d.ComputerName, d.Manufacturer, d.Model,
+      d.normBios || '', d.BIOSVersion || '', d.minVersion || '',
+      d.matchedModel || '', d.status === 'ok' ? 'Up to date' : d.status === 'bad' ? 'Update required' : 'Not checked',
+      d.BIOSReleaseDate || '', d.LastHardwareScan || '',
+    ];
+    if (sbLoaded) {
+      const sb = d.secureBoot || 'unknown';
+      row.push(sb === 'compliant' ? 'Compliant' : sb === 'non-compliant' ? 'Non-Compliant' : 'Not in report');
+    }
+    if (cspDataAvailable) {
+      row.push(d.CSPVersion || '');
+      const sp = d.sbkpfv3;
+      row.push(sp === 'ready' ? 'SBKPFV3 Ready' : sp === 'needed' ? 'Update Needed' : sp === 'nodata' ? 'No Data' : 'N/A');
+    }
+    return row;
+  })];
+
+  const csvText = '\uFEFF' + rows.map(r =>
+    r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')
+  ).join('\r\n');
+
+  const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'cm_bios_compliance.csv';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT — HTML REPORT
+// ═══════════════════════════════════════════════════════════
+function exportHTML() {
+  if (!filtered.length) return;
+
+  const ts = new Date().toLocaleString();
+
+  const statusLabel = s => s === 'ok' ? 'Up to date' : s === 'bad' ? 'Update required' : s === 'eol' ? 'End of Life' : 'Not checked';
+  const statusStyle = s => s === 'ok'
+    ? 'background:#eaf3de;color:#3b6d11;'
+    : s === 'bad'
+      ? 'background:#fcebeb;color:#a32d2d;'
+      : s === 'eol'
+        ? 'background:#2d1f00;color:#f59e0b;'
+        : 'background:#f5f5f4;color:#6b6b67;';
+  const sbStyle = s => s === 'compliant'
+    ? 'background:#eaf3de;color:#3b6d11;'
+    : s === 'non-compliant'
+      ? 'background:#fcebeb;color:#a32d2d;'
+      : 'background:#f5f5f4;color:#9d9d99;';
+  const sbLabel = s => s === 'compliant' ? 'Compliant' : s === 'non-compliant' ? 'Non-Compliant' : 'Not in report';
+  // SBKPFV3 helpers — used to build the inline-styled cell in the exported HTML report
+  const sbkpLabel = sp => sp === 'ready' ? 'SBKPFV3 Ready' : sp === 'needed' ? 'Update Needed' : 'No Data';
+  const sbkpStyle = sp => sp === 'ready'
+    ? 'background:#eaf3de;color:#3b6d11;'
+    : sp === 'needed'
+      ? 'background:#fcebeb;color:#a32d2d;'
+      : 'background:#f5f5f4;color:#6b6b67;';
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const badge = (txt, style) =>
+    `<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;${style}">${esc(txt)}</span>`;
+
+  // Stat cards snapshot
+  const statCards = [
+    ['Total Devices',     document.getElementById('statTotal').textContent, ''],
+    ['BIOS Up to Date',   document.getElementById('statOk').textContent,    'color:#3b6d11;'],
+    ['Update Required',   document.getElementById('statBad').textContent,   'color:#a32d2d;'],
+    ['Not Checked',       document.getElementById('statUnk').textContent,   ''],
+    ...(sbLoaded ? [
+      ['Secure Boot OK',           document.getElementById('statSBOk').textContent,  'color:#3b6d11;'],
+      ['Secure Boot Non-Compliant',document.getElementById('statSBBad').textContent, 'color:#a32d2d;'],
+    ] : []),
+  ];
+
+  const statsHTML = statCards.map(([label, val, style]) =>
+    `<div style="background:#f5f5f4;border:0.5px solid #ddd;border-radius:6px;padding:12px 16px;min-width:120px;flex:1 1 120px;">
+       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#9d9d99;margin-bottom:4px;">${esc(label)}</div>
+       <div style="font-size:24px;font-weight:600;${style}">${esc(val)}</div>
+     </div>`
+  ).join('');
+
+  // Encode sort values as data-* attributes so the exported JS never parses badge HTML.
+  // Status and Secure Boot use a numeric order (0=best, ascending = best first).
+  const statusOrder = { ok: 0, bad: 1, unknown: 2 };
+  const sbOrder     = { compliant: 0, 'non-compliant': 1, unknown: 2 };
+
+  const rowsHTML = filtered.map(d => {
+    const sb = d.secureBoot || 'unknown';
+    const sbCell = sbLoaded
+      ? `<td style="padding:6px 10px;">${badge(sbLabel(sb), sbStyle(sb))}</td>`
+      : '';
+    const sbAttr  = sbLoaded        ? ` data-sb="${sbOrder[sb] ?? 2}"`   : '';
+    const spOrder = { ready: 0, needed: 1, nodata: 2 };
+    const sp      = d.sbkpfv3 || '';
+    const sbkpAttr = cspDataAvailable && sp ? ` data-sbkp="${spOrder[sp] ?? 3}"` : '';
+    // Build the SBKPFV3 cell with inline styles (exported HTML has no external CSS classes)
+    const sbkpCellHTML = cspDataAvailable
+      ? sp
+        ? `<td style="padding:6px 10px;">${badge(sbkpLabel(sp), sbkpStyle(sp))}</td>`
+        : `<td style="padding:6px 10px;color:#9d9d99;">—</td>`
+      : '';
+    return `<tr style="border-bottom:0.5px solid #e8e8e6;"
+      data-name="${esc(d.ComputerName||'')}"
+      data-mfg="${esc(d.Manufacturer||'')}"
+      data-model="${esc(d.Model||'')}"
+      data-bios="${esc(d.normBios||'')}"
+      data-minbios="${esc(d.minVersion||'')}"
+      data-status="${statusOrder[d.status] ?? 2}"
+      data-biosdate="${esc(d.BIOSReleaseDate||'')}"
+      data-hwscan="${esc(d.LastHardwareScan||'')}"${sbAttr}${sbkpAttr}>
+      <td style="padding:6px 10px;font-weight:500;">${esc(d.ComputerName)}</td>
+      <td style="padding:6px 10px;color:#6b6b67;">${esc(d.Manufacturer)}</td>
+      <td style="padding:6px 10px;">${esc(d.Model)}</td>
+      <td style="padding:6px 10px;font-family:monospace;font-size:12px;">${esc(d.normBios||'—')}</td>
+      <td style="padding:6px 10px;font-family:monospace;font-size:11px;color:#9d9d99;">${esc(d.minVersion||'—')}</td>
+      <td style="padding:6px 10px;">${badge(statusLabel(d.status), statusStyle(d.status))}</td>
+      <td style="padding:6px 10px;color:#6b6b67;">${esc(d.BIOSReleaseDate||'—')}</td>
+      <td style="padding:6px 10px;color:#6b6b67;">${esc(d.LastHardwareScan||'—')}</td>
+      ${sbCell}
+      ${sbkpCellHTML}
+    </tr>`;
+  }).join('');
+
+  // Column definitions fed into the <thead> — drives both rendering and the sort script.
+  const cols = [
+    ['Computer Name',    'name',    'str'],
+    ['Manufacturer',     'mfg',     'str'],
+    ['Model',            'model',   'str'],
+    ['BIOS (installed)', 'bios',    'str'],
+    ['BIOS (minimum)',   'minbios', 'str'],
+    ['Status',           'status',  'num'],
+    ['BIOS Date',        'biosdate','str'],
+    ['Last HW Scan',     'hwscan',  'str'],
+    ...(sbLoaded        ? [['Secure Boot', 'sb',   'num']] : []),
+    ...(cspDataAvailable ? [['SBKPFV3',     'sbkp', 'num']] : []),
+  ];
+
+  const theadHTML = cols.map(([label, key, type]) =>
+    `<th data-key="${key}" data-type="${type}" data-dir="none" onclick="sortTable(this)"
+        style="cursor:pointer;user-select:none;background:#f5f5f4;padding:8px 10px;text-align:left;
+               font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;
+               color:#9d9d99;border-bottom:0.5px solid #e8e8e6;white-space:nowrap;">
+      ${esc(label)}<span class="arr" style="margin-left:5px;opacity:0.45;font-size:10px;">⬍</span>
+    </th>`
+  ).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConfigMgr BIOS Compliance Report</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #efefed; color: #1a1a18; font-size: 14px; line-height: 1.5; padding: 2rem clamp(1rem,3vw,3rem) 4rem; }
+  h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .wrap { overflow-x: auto; border-radius: 8px; border: 0.5px solid #ddd; }
+  table { width: 100%; border-collapse: collapse; background: #fff; font-size: 13px; }
+  thead th:hover { background: #e8e8e6 !important; color: #1a1a18 !important; }
+  thead th[data-dir="asc"]  .arr::after { content: "▲"; }
+  thead th[data-dir="desc"] .arr::after { content: "▼"; }
+  thead th[data-dir="none"] .arr::after { content: "⬍"; }
+  thead th[data-dir="asc"]  .arr,
+  thead th[data-dir="desc"] .arr { opacity: 1 !important; color: #1a1a18; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: #fafaf9; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    table { font-size: 10px; }
+    thead th, td { padding: 4px 6px !important; cursor: default; }
+  }
+</style>
+</head>
+<body>
+  <div style="margin-bottom:1.5rem;">
+    <h1>ConfigMgr BIOS Compliance Report</h1>
+    <p style="font-size:13px;color:#6b6b67;margin-top:4px;">Generated ${esc(ts)} &middot; ${filtered.length} devices &middot; <em>Click any column header to sort</em></p>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:1.5rem;">${statsHTML}</div>
+  <div class="wrap">
+    <table>
+      <thead><tr>${theadHTML}</tr></thead>
+      <tbody id="rb">${rowsHTML}</tbody>
+    </table>
+  </div>
+  <p style="margin-top:1.5rem;font-size:12px;color:#9d9d99;text-align:center;">ConfigMgr BIOS Compliance Tracker &middot; All data processed locally</p>
+<script>
+function sortTable(th) {
+  var dir  = th.dataset.dir === 'asc' ? 'desc' : 'asc';
+  var key  = th.dataset.key;
+  var type = th.dataset.type;
+  th.closest('thead').querySelectorAll('th').forEach(function(h) { h.dataset.dir = 'none'; });
+  th.dataset.dir = dir;
+  var tbody = document.getElementById('rb');
+  var rows  = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort(function(a, b) {
+    var av = a.dataset[key] || '';
+    var bv = b.dataset[key] || '';
+    var cmp = type === 'num'
+      ? (parseFloat(av) || 0) - (parseFloat(bv) || 0)
+      : av.localeCompare(bv, undefined, { sensitivity: 'base', numeric: true });
+    return dir === 'asc' ? cmp : -cmp;
+  });
+  rows.forEach(function(r) { tbody.appendChild(r); });
+}
+<\/script>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'cm_bios_compliance_report.html';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT — PDF via PRINT DIALOG
+// ═══════════════════════════════════════════════════════════
+function exportPDF() {
+  if (!filtered.length) return;
+  const meta = document.getElementById('printMeta');
+  if (meta) {
+    const ts = new Date().toLocaleString();
+    meta.textContent = `Generated ${ts} · ${filtered.length} devices · Filtered view`;
+  }
+  window.print();
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT DROPDOWN HELPERS
+// ═══════════════════════════════════════════════════════════
+function toggleExportMenu(e) {
+  e.stopPropagation();
+  document.getElementById('exportMenu').classList.toggle('open');
+}
+function closeExportMenu() {
+  document.getElementById('exportMenu').classList.remove('open');
+}
+document.addEventListener('click', () => closeExportMenu());
+
+
+function handleSBDrop(e) {
+  e.preventDefault();
+  document.getElementById('sbDropZone').classList.remove('drag-over');
+  handleSBFile(e.dataTransfer.files[0]);
+}
+
+function handleSBFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext !== 'csv') {
+    setSBStatus('❌ Only .csv files are supported for the Secure Boot report', 'error');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      loadSBCSV(e.target.result, file.name);
+    } catch (err) {
+      setSBStatus('❌ Parse error: ' + escHtml(err.message), 'error');
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function loadSBCSV(text, filename) {
+  const rows = parseCSV(text);
+  if (rows.length < 2) throw new Error('CSV appears empty');
+  const headers = rows[0];
+
+  // Populate column selectors
+  const optHTML = headers.map((h, i) =>
+    `<option value="${i}">${escHtml(h)}</option>`).join('');
+  document.getElementById('sbColName').innerHTML = optHTML;
+  document.getElementById('sbColStatus').innerHTML = optHTML;
+
+  // Auto-detect columns
+  const normH = h => h.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const nameIdx   = headers.findIndex(h => normH(h).includes('computername') || normH(h).includes('computer') || normH(h) === 'name');
+  const statusIdx = headers.findIndex(h => normH(h).includes('secureboot') || normH(h).includes('status'));
+  document.getElementById('sbColName').value   = String(Math.max(0, nameIdx));
+  document.getElementById('sbColStatus').value = String(Math.max(0, statusIdx));
+
+  // Store raw rows on the element for use when Apply is clicked
+  document.getElementById('sbColName').dataset.rows   = JSON.stringify(rows.slice(1));
+  document.getElementById('sbColName').dataset.headers = JSON.stringify(headers);
+
+  document.getElementById('sbDropZone').classList.add('loaded');
+  document.getElementById('sbUploadStatus').textContent = `✓ ${filename} · ${rows.length - 1} rows`;
+  document.getElementById('sbColOptions').style.display = 'block';
+  document.getElementById('btnApplySB').disabled = false;
+  setSBStatus(`📂 Loaded <strong>${escHtml(filename)}</strong> · ${rows.length - 1} records. Click <em>Apply</em> to cross-reference.`, 'info');
+}
+
+function applySBData() {
+  const nameColEl   = document.getElementById('sbColName');
+  const statusColEl = document.getElementById('sbColStatus');
+  const nameIdx     = parseInt(nameColEl.value, 10);
+  const statusIdx   = parseInt(statusColEl.value, 10);
+  const rows        = JSON.parse(nameColEl.dataset.rows   || '[]');
+
+  if (!rows.length) {
+    setSBStatus('❌ No data — reload the file', 'error');
+    return;
+  }
+
+  sbMap = {};
+  let matched = 0, compliant = 0, nonCompliant = 0;
+
+  for (const row of rows) {
+    const name   = (row[nameIdx]   != null ? String(row[nameIdx])   : '').trim();
+    const status = (row[statusIdx] != null ? String(row[statusIdx]) : '').trim();
+    if (!name) continue;
+    const key = name.toUpperCase();
+    // Normalise: "Updated (Compliant)" → compliant, everything else non-compliant
+    const sbStatus = status.toLowerCase().includes('non') ? 'non-compliant' : 'compliant';
+    sbMap[key] = sbStatus;
+    if (sbStatus === 'compliant') compliant++; else nonCompliant++;
+  }
+
+  matched = Object.keys(sbMap).length;
+  sbLoaded = true;
+
+  // Enrich processed data
+  for (const d of processed) {
+    const key = (d.ComputerName || '').toUpperCase();
+    d.secureBoot = sbMap[key] || 'unknown';
+  }
+
+  // Show Secure Boot UI elements
+  document.getElementById('thSecureBoot').style.display = '';
+  document.getElementById('fSBCol').style.display = '';
+  document.getElementById('statSBCard').style.display = '';
+  document.getElementById('statSBBadCard').style.display = '';
+  document.getElementById('btnClearSB').style.display = '';
+
+  updateStats();
+  applyFilters();
+
+  const matchCount = processed.filter(d => d.secureBoot !== 'unknown').length;
+  setSBStatus(
+    `✅ Cross-referenced ${matched} entries from report &mdash; ` +
+    `<strong>${matchCount}</strong> of ${processed.length} devices matched &middot; ` +
+    `${compliant} compliant &middot; ${nonCompliant} non-compliant`,
+    'success'
+  );
+}
+
+function clearSBData() {
+  sbMap = {};
+  sbLoaded = false;
+  for (const d of processed) { delete d.secureBoot; }
+
+  document.getElementById('thSecureBoot').style.display = 'none';
+  document.getElementById('fSBCol').style.display = 'none';
+  document.getElementById('statSBCard').style.display = 'none';
+  document.getElementById('statSBBadCard').style.display = 'none';
+  document.getElementById('statVMCard').style.display = 'none';
+  document.getElementById('statSBKPReadyCard').style.display = 'none';
+  document.getElementById('statSBKPNeededCard').style.display = 'none';
+  document.getElementById('thSBKP').style.display = 'none';
+  document.getElementById('fSBKPCol').style.display = 'none';
+  document.getElementById('sbDropZone').classList.remove('loaded');
+  document.getElementById('sbUploadStatus').textContent = '';
+  document.getElementById('sbColOptions').style.display = 'none';
+  document.getElementById('sbFileInput').value = '';
+  document.getElementById('fSB').value = '';
+  document.getElementById('btnClearSB').style.display = 'none';
+  setSBStatus('', '');
+  updateStats();
+  applyFilters();
+}
+
+function setSBStatus(msg, type) {
+  const bar = document.getElementById('sbStatusBar');
+  if (!msg) { bar.className = ''; bar.innerHTML = ''; return; }
+  bar.className = 'show ' + type;
+  bar.innerHTML = msg;
+}
+
+// ═══════════════════════════════════════════════════════════
+// RESET
+// ═══════════════════════════════════════════════════════════
+function resetAll() {
+  rawData = []; processed = []; filtered = [];
+  isCsvMode = false; csvHeaders = [];
+  sbMap = {}; sbLoaded = false;
+  vmExcludedCount = 0;
+  cspDataAvailable = false;
+  document.getElementById('statsSection').classList.remove('show');
+  document.getElementById('filterSection').classList.remove('show');
+  document.getElementById('tableSection').classList.remove('show');
+  document.getElementById('csvOptions').style.display = 'none';
+  document.getElementById('uploadStatus').textContent = '';
+  document.getElementById('btnAnalyze').disabled = true;
+  document.getElementById('btnReset').style.display = 'none';
+  dropZone.classList.remove('loaded');
+  fileInput.value = '';
+  // Reset SB import UI
+  document.getElementById('sbDropZone').classList.remove('loaded');
+  document.getElementById('sbUploadStatus').textContent = '';
+  document.getElementById('sbColOptions').style.display = 'none';
+  document.getElementById('sbFileInput').value = '';
+  document.getElementById('thSecureBoot').style.display = 'none';
+  document.getElementById('fSBCol').style.display = 'none';
+  document.getElementById('statSBCard').style.display = 'none';
+  document.getElementById('statSBBadCard').style.display = 'none';
+  document.getElementById('statVMCard').style.display = 'none';
+  document.getElementById('statSBKPReadyCard').style.display = 'none';
+  document.getElementById('statSBKPNeededCard').style.display = 'none';
+  document.getElementById('thSBKP').style.display = 'none';
+  document.getElementById('fSBKPCol').style.display = 'none';
+  document.getElementById('btnClearSB').style.display = 'none';
+  setSBStatus('', '');
+  clearStatus();
+  clearFilters();
+}
+</script>
+</body>
+</html>

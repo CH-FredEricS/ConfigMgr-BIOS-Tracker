@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConfigMgr BIOS Compliance Checker — Dokumentation</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg:           #0d1117;
+  --bg2:          #161b22;
+  --bg3:          #21262d;
+  --bg4:          #2d333b;
+  --border:       #30363d;
+  --border2:      #444c56;
+  --text:         #e6edf3;
+  --text2:        #c9d1d9;
+  --muted:        #7d8590;
+  --dim:          #545d68;
+  --accent:       #58a6ff;
+  --green:        #3fb950;
+  --green-bg:     rgba(63,185,80,.1);
+  --green-border: rgba(63,185,80,.3);
+  --red:          #f85149;
+  --red-bg:       rgba(248,81,73,.1);
+  --red-border:   rgba(248,81,73,.3);
+  --yellow:       #e3b341;
+  --yellow-bg:    rgba(227,179,65,.1);
+  --yellow-border:rgba(227,179,65,.3);
+  --blue-bg:      rgba(88,166,255,.08);
+  --blue-border:  rgba(88,166,255,.25);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.75;
+  font-size: .95rem;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── LAYOUT ── */
+.layout { display: flex; min-height: 100vh; }
+
+.toc {
+  width: 272px;
+  flex-shrink: 0;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  padding: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.content {
+  flex: 1;
+  max-width: 900px;
+  padding: 52px 64px 80px;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+/* ── TOC ── */
+.toc-header {
+  padding: 24px 24px 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.toc-product {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.toc-icon {
+  width: 32px; height: 32px;
+  background: var(--blue-bg);
+  border: 1px solid var(--blue-border);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.toc-product-name {
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.toc-product-sub {
+  font-size: .7rem;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  margin-top: 1px;
+}
+
+.toc-version {
+  display: inline-block;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .68rem;
+  color: var(--accent);
+}
+
+.toc-group-label {
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--dim);
+  padding: 12px 24px 4px;
+}
+
+.toc-item {
+  display: block;
+  padding: 5px 24px;
+  font-size: .81rem;
+  color: var(--muted);
+  border-left: 2px solid transparent;
+  transition: all .15s;
+  cursor: pointer;
+}
+
+.toc-item:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(88,166,255,.05);
+  text-decoration: none;
+}
+
+.toc-item.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(88,166,255,.07);
+}
+
+.toc-item.sub {
+  padding-left: 36px;
+  font-size: .77rem;
+}
+
+.toc-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 24px;
+}
+
+/* ── CONTENT SECTIONS ── */
+.section {
+  margin-bottom: 64px;
+  scroll-margin-top: 32px;
+}
+
+.section-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .68rem;
+  color: var(--dim);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-weight: 400;
+  margin-right: 10px;
+}
+
+h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  color: var(--text);
+  margin-bottom: 10px;
+  line-height: 1.2;
+}
+
+h1 .accent { color: var(--accent); }
+
+.page-subtitle {
+  color: var(--muted);
+  font-size: .9rem;
+  margin-bottom: 32px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+}
+
+.section-rule {
+  height: 1px;
+  background: var(--border);
+  margin-bottom: 24px;
+}
+
+h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 28px 0 10px;
+}
+
+h4 {
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  margin: 22px 0 8px;
+}
+
+p { color: var(--text2); margin-bottom: 14px; line-height: 1.75; }
+p:last-child { margin-bottom: 0; }
+
+ul, ol { padding-left: 20px; margin-bottom: 14px; color: var(--text2); }
+li { margin-bottom: 5px; line-height: 1.65; }
+li:last-child { margin-bottom: 0; }
+
+/* ── CODE ── */
+code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .82rem;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+pre {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  overflow-x: auto;
+  margin: 16px 0 20px;
+}
+
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: .8rem;
+  color: var(--text2);
+  line-height: 1.7;
+}
+
+/* ── CALLOUTS ── */
+.callout {
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 18px 0;
+  font-size: .88rem;
+  line-height: 1.65;
+  display: flex;
+  gap: 12px;
+  color: var(--text2);
+}
+
+.callout-icon { font-size: 15px; flex-shrink: 0; margin-top: 2px; }
+.callout-body { flex: 1; }
+.callout-body p { margin-bottom: 6px; color: inherit; }
+.callout-body p:last-child { margin-bottom: 0; }
+.callout-body strong { font-weight: 600; display: block; margin-bottom: 4px; }
+
+.callout-info   { background: var(--blue-bg);   border: 1px solid var(--blue-border);   color: var(--accent); }
+.callout-warn   { background: var(--yellow-bg);  border: 1px solid var(--yellow-border); color: var(--yellow); }
+.callout-ok     { background: var(--green-bg);   border: 1px solid var(--green-border);  color: var(--green); }
+.callout-danger { background: var(--red-bg);     border: 1px solid var(--red-border);    color: var(--red); }
+
+/* ── TABLES ── */
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 24px;
+  font-size: .85rem;
+}
+
+.doc-table th {
+  background: var(--bg3);
+  padding: 9px 13px;
+  text-align: left;
+  font-weight: 600;
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.doc-table td {
+  padding: 9px 13px;
+  border-bottom: 1px solid rgba(48,54,61,.6);
+  color: var(--text2);
+  vertical-align: top;
+  line-height: 1.55;
+}
+
+.doc-table tr:last-child td { border-bottom: none; }
+.doc-table tr:hover td { background: rgba(88,166,255,.03); }
+.doc-table code { font-size: .78rem; }
+
+/* ── BADGES ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 4px;
+  font-size: .7rem;
+  font-weight: 600;
+  font-family: 'IBM Plex Mono', monospace;
+  white-space: nowrap;
+}
+
+.badge-green  { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+.badge-red    { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
+.badge-gray   { background: var(--bg3);       color: var(--muted);  border: 1px solid var(--border); }
+.badge-blue   { background: var(--blue-bg);   color: var(--accent); border: 1px solid var(--blue-border); }
+.badge-yellow { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
+
+.dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
+.dot-green { background: var(--green); }
+.dot-red   { background: var(--red); }
+.dot-gray  { background: var(--muted); }
+
+/* ── STEP LIST ── */
+.step-list { list-style: none; padding: 0; counter-reset: steps; margin: 16px 0 24px; }
+.step-list li {
+  counter-increment: steps;
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  color: var(--text2);
+  line-height: 1.65;
+}
+.step-list li::before {
+  content: counter(steps);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px; height: 24px;
+  min-width: 24px;
+  background: var(--blue-bg);
+  border: 1px solid var(--blue-border);
+  border-radius: 50%;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+/* ── VERSION HISTORY ── */
+.changelog { margin: 0; padding: 0; list-style: none; }
+.changelog-entry {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 0 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.changelog-entry:last-child { border-bottom: none; }
+.changelog-version {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .78rem;
+  color: var(--accent);
+  font-weight: 600;
+  padding-top: 2px;
+}
+.changelog-date {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .68rem;
+  color: var(--dim);
+  margin-top: 2px;
+}
+.changelog-title {
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.changelog-items {
+  list-style: none; padding: 0;
+  font-size: .83rem; color: var(--muted);
+}
+.changelog-items li { margin-bottom: 3px; padding-left: 14px; position: relative; }
+.changelog-items li::before { content: '·'; position: absolute; left: 0; color: var(--dim); }
+
+/* ── DB STAT GRID ── */
+.db-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 16px 0 24px;
+}
+
+.db-tile {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.db-tile::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.db-tile.dell::before   { background: #58a6ff; }
+.db-tile.hp::before     { background: #3fb950; }
+.db-tile.lenovo::before { background: #e3b341; }
+
+.db-tile-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .65rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 6px;
+}
+
+.db-tile-count {
+  font-size: 1.8rem;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', monospace;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.db-tile.dell   .db-tile-count { color: #58a6ff; }
+.db-tile.hp     .db-tile-count { color: var(--green); }
+.db-tile.lenovo .db-tile-count { color: var(--yellow); }
+
+.db-tile-source {
+  font-size: .7rem;
+  color: var(--dim);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ── MATCHING FLOW ── */
+.match-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0 24px;
+}
+
+.match-stage {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 13px 16px;
+}
+
+.match-stage-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--blue-bg);
+  border: 1px solid var(--blue-border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.match-stage-body { flex: 1; }
+.match-stage-title { font-size: .88rem; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.match-stage-desc  { font-size: .82rem; color: var(--muted); line-height: 1.5; }
+
+.match-arrow {
+  text-align: center;
+  color: var(--dim);
+  font-size: .8rem;
+  padding: 0 16px;
+}
+
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc" id="toc">
+    <div class="toc-header">
+      <div class="toc-product">
+        <div class="toc-icon">🖥️</div>
+        <div>
+          <div class="toc-product-name">ConfigMgr BIOS<br>Compliance Checker</div>
+          <div class="toc-product-sub">ConfigMgr / SCCM</div>
+        </div>
+      </div>
+      <span class="toc-version">v1.10</span>
+    </div>
+    <div class="toc-group-label">Übersicht</div>
+    <a class="toc-item" href="#overview">Einleitung</a>
+    <a class="toc-item" href="#requirements">Voraussetzungen</a>
+    <div class="toc-group-label">Einrichtung</div>
+    <a class="toc-item" href="#step1">Schritt 1 — Daten exportieren</a>
+    <a class="toc-item sub" href="#step1-ps">PowerShell-Export</a>
+    <a class="toc-item sub" href="#step1-csp">CSP-Version (HP)</a>
+    <a class="toc-item sub" href="#step1-ssrs">SSRS-Export</a>
+    <a class="toc-item" href="#step2">Schritt 2 — Laden &amp; Analysieren</a>
+    <a class="toc-item sub" href="#step2-json">JSON-Import</a>
+    <a class="toc-item sub" href="#step2-csv">CSV-Import</a>
+    <a class="toc-item" href="#step3">Schritt 3 — Secure-Boot-Import</a>
+    <div class="toc-group-label">Referenz</div>
+    <a class="toc-item" href="#results">Ergebnisse &amp; Filter</a>
+    <a class="toc-item" href="#export">Export</a>
+    <a class="toc-item sub" href="#export-csv">CSV</a>
+    <a class="toc-item sub" href="#export-html">HTML-Bericht</a>
+    <a class="toc-item sub" href="#export-pdf">PDF / Drucken</a>
+    <a class="toc-item" href="#bios-db">BIOS-Datenbank</a>
+    <a class="toc-item sub" href="#matching">Modell-Erkennung</a>
+    <a class="toc-item sub" href="#lenovo-mt">Lenovo MT-Nachschlag</a>
+    <a class="toc-item sub" href="#normalization">Versions-Normalisierung</a>
+    <a class="toc-item sub" href="#comparison">Versionsvergleich</a>
+    <a class="toc-item" href="#vm-exclusion">VM-Ausschluss</a>
+    <a class="toc-item" href="#status-codes">Statuscodes</a>
+    <div class="toc-divider"></div>
+    <div class="toc-group-label">Verlauf</div>
+    <a class="toc-item" href="#changelog">Änderungsprotokoll</a>
+  </nav>
+  <main class="content">
+    <h1>ConfigMgr <span class="accent">BIOS</span> Compliance Checker</h1>
+    <p class="page-subtitle">Secure Boot 2023 · UEFI-Zertifikats-Voraussetzungen · v1.10</p>
+
+    <!-- OVERVIEW -->
+    <section class="section" id="overview">
+      <h2><span class="section-num">01</span>Einleitung</h2>
+      <div class="section-rule"></div>
+      <p>Der ConfigMgr BIOS Compliance Checker ist ein eigenständiges HTML-Tool, das Geräte in Ihrer Microsoft Endpoint Configuration Manager-Umgebung (MECM / SCCM) identifiziert, deren BIOS-Version nicht den Mindestanforderungen für das <strong>Secure Boot 2023 UEFI-Zertifikats-Update</strong> entspricht.</p>
+      <p>Geräte, die das Windows Update mit dem neuen Secure-Boot-Zertifikat erhalten, ohne über ein ausreichend aktuelles BIOS zu verfügen, können einen Boot-Fehler erleiden. Die Hersteller haben Mindest-BIOS-Versionen veröffentlicht; dieses Tool prüft Ihr gesamtes ConfigMgr-Inventar in Sekunden gegen diese Anforderungen. Virtuelle Maschinen werden automatisch ausgeschlossen — sie können keine BIOS-Updates erhalten.</p>
+      <div class="callout callout-info">
+        <div class="callout-icon">ℹ️</div>
+        <div class="callout-body">
+          <strong>Keine serverseitige Komponente erforderlich</strong>
+          Das Tool läuft vollständig im Browser. Es liest die aus ConfigMgr exportierten Daten — kein Agent, kein Backend, keine Netzwerkverbindung zur Laufzeit erforderlich.
+        </div>
+      </div>
+      <h3>Funktionsweise</h3>
+      <ol class="step-list">
+        <li>Hardware-Inventardaten (BIOS-Version, Modell, Hersteller) aus ConfigMgr per PowerShell-Skript oder SSRS-Bericht exportieren.</li>
+        <li>Die exportierte <code>.json</code>- oder <code>.csv</code>-Datei in das Tool laden.</li>
+        <li>Das Tool gleicht jedes Gerät gegen die integrierte BIOS-Datenbank ab und vergleicht die installierte Version mit dem Herstellerminimum. Virtuelle Maschinen werden automatisch ausgeschlossen.</li>
+        <li>Die Ergebnisse werden in einer filterbare, sortierbare Tabelle mit Übersichtskacheln angezeigt. Nicht-konforme Geräte werden standardmäßig oben sortiert.</li>
+      </ol>
+      <h3>Vergleich mit dem Intune-Tool</h3>
+      <p>Dieses Tool ist das ConfigMgr-Pendant zum Intune BIOS Compliance Checker. Die Compliance-Engine — BIOS-Datenbank, Modell-Matching-Logik und Versionsvergleich — ist gemeinsam genutzt. Die Unterschiede liegen in der Datenquelle und der Lenovo-Geräteerkennung:</p>
+      <table class="doc-table">
+        <thead><tr><th>Funktion</th><th>ConfigMgr-Tool</th><th>Intune-Tool</th></tr></thead>
+        <tbody>
+          <tr><td>Datenquelle</td><td>PowerShell / SSRS-Export</td><td>Graph API / CSV-Export</td></tr>
+          <tr><td>Authentifizierung zur Laufzeit</td><td>Nein — dateibasiert</td><td>Ja (Graph) / Nein (CSV)</td></tr>
+          <tr><td>Lenovo-Geräteerkennung</td><td>Produktname (WMI) + MT-Code-Fallback</td><td>4-stelliger Maschinentyp-Code (primär)</td></tr>
+          <tr><td>Secure-Boot-Spalte</td><td>Optional (Schritt 3 CSV-Import)</td><td>Optional (CSV-Import)</td></tr>
+          <tr><td>HP SBKPFV3-Bereitschaft</td><td>Optional (CSP-Version-Feld)</td><td>Nicht verfügbar</td></tr>
+          <tr><td>Spalte "Letzter HW-Scan"</td><td>✓ Enthalten</td><td>Nicht verfügbar</td></tr>
+          <tr><td>VM-Ausschluss</td><td>✓ Hyper-V + VMware</td><td>Nicht zutreffend</td></tr>
+          <tr><td>BIOS-Datenbank</td><td>Identisch (651 Lenovo + Dell + HP)</td><td>Identisch</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- REQUIREMENTS -->
+    <section class="section" id="requirements">
+      <h2><span class="section-num">02</span>Voraussetzungen</h2>
+      <div class="section-rule"></div>
+      <table class="doc-table">
+        <thead><tr><th>Komponente</th><th>Anforderung</th></tr></thead>
+        <tbody>
+          <tr><td>Browser</td><td>Jeder moderne Browser (Chrome, Edge, Firefox, Safari). Keine Erweiterungen erforderlich.</td></tr>
+          <tr><td>ConfigMgr-Berechtigungen (PowerShell)</td><td>Lesezugriff auf die ConfigMgr-Standortdatenbank. Die integrierte Rolle <strong>Read-Only Analyst</strong> reicht aus. Benötigte Views: <code>v_R_System</code>, <code>v_GS_COMPUTER_SYSTEM</code>, <code>v_GS_PC_BIOS</code>, <code>v_GS_WORKSTATION_STATUS</code>. Optional: <code>v_GS_COMPUTER_SYSTEM_PRODUCT</code> (für HP SBKPFV3-Prüfung).</td></tr>
+          <tr><td>ConfigMgr-Berechtigungen (SSRS)</td><td>Lesezugriff auf den SSRS-Bericht. Die ConfigMgr-Sicherheitsrolle <strong>Report Users</strong> reicht aus.</td></tr>
+          <tr><td>Hardware-Inventar</td><td>Muss aktiviert sein und Geräte müssen mindestens einmal berichtet haben. Ohne Hardware-Inventar bleiben <code>SMBIOSBIOSVersion</code> und verwandte Felder leer.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout callout-warn">
+        <div class="callout-icon">⚠️</div>
+        <div class="callout-body">
+          <strong>Datenqualität des Hardware-Inventars</strong>
+          Geräte ohne aktuellen Hardware-Inventar-Bericht erscheinen ohne BIOS-Version und werden als <em>Nicht geprüft</em> eingestuft. Prüfen Sie die Spalte <strong>Letzter HW-Scan</strong> — Daten älter als 30 Tage können veraltete Daten anzeigen.
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 1 -->
+    <section class="section" id="step1">
+      <h2><span class="section-num">03</span>Schritt 1 — Gerätedaten exportieren</h2>
+      <div class="section-rule"></div>
+      <p>Das Tool akzeptiert zwei Dateiformate: <strong>JSON</strong> (aus dem PowerShell-Exportskript) und <strong>CSV</strong> (aus SSRS oder einem anderen tabellarischen Export). Beide enthalten dieselben Kernfelder.</p>
+
+      <h3 id="step1-ps">Option A — PowerShell-Export (empfohlen)</h3>
+      <p>Führen Sie das folgende Skript auf einem Rechner mit Netzwerkzugriff auf den ConfigMgr-Datenbankserver aus. Es fragt die Hardware-Inventar-Views direkt ab und schreibt eine JSON-Datei. Das Skript erkennt automatisch, ob <code>Win32_ComputerSystemProduct</code> im Hardware-Inventar aktiviert ist, und fügt das CSP-Versionsfeld bei Verfügbarkeit hinzu.</p>
+      <pre><code># ConfigMgr BIOS-Exportskript — v1.10
+# Voraussetzung: Read-Only Analyst-Rolle oder gleichwertige SQL-Leseberechtigungen
+
+param(
+  [string]$SiteServer  = "CMSERVER",
+  [string]$SiteCode    = "P01",
+  [string]$OutputFile  = ".\cm_bios_export.json"
+)
+
+$conn = New-Object System.Data.SqlClient.SqlConnection
+$conn.ConnectionString = "Server=$SiteServer;Database=CM_$SiteCode;" +
+                         "Integrated Security=SSPI;Connect Timeout=30"
+$conn.Open()
+
+# Prüfen, ob Win32_ComputerSystemProduct im Hardware-Inventar aktiviert ist.
+# Version0 enthält den SMBIOS-Typ-1-String. Bei HP-Geräten enthält dieser
+# "SBKPFV3", wenn das BIOS die neuen Secure-Boot-Zertifikate bereits unterstützt.
+$chkCmd = $conn.CreateCommand()
+$chkCmd.CommandText = "SELECT COUNT(*) FROM sys.views " +
+                      "WHERE name = 'v_GS_COMPUTER_SYSTEM_PRODUCT'"
+$hasCsp = [int]$chkCmd.ExecuteScalar() -gt 0
+
+if ($hasCsp) {
+  Write-Host "Win32_ComputerSystemProduct gefunden — CSPVersion wird einbezogen." -ForegroundColor Cyan
+} else {
+  Write-Host "Win32_ComputerSystemProduct nicht gefunden — CSPVersion bleibt leer." -ForegroundColor Yellow
+}
+
+$cspSelect = if ($hasCsp) { ",`n  csp.Version0 AS CSPVersion" } else { ",`n  NULL AS CSPVersion" }
+$cspJoin   = if ($hasCsp) { "`nLEFT JOIN v_GS_COMPUTER_SYSTEM_PRODUCT csp ON sys.ResourceID = csp.ResourceID" } else { "" }
+
+$query = @"
+SELECT DISTINCT
+  sys.Name0               AS ComputerName,
+  cs.Manufacturer0        AS Manufacturer,
+  cs.Model0               AS Model,
+  bios.SMBIOSBIOSVersion0 AS BIOSVersion,
+  bios.ReleaseDate0       AS BIOSReleaseDate,
+  hw.LastHWScan           AS LastHardwareScan$cspSelect
+FROM v_R_System sys
+JOIN v_GS_COMPUTER_SYSTEM    cs   ON sys.ResourceID = cs.ResourceID
+JOIN v_GS_PC_BIOS            bios ON sys.ResourceID = bios.ResourceID
+LEFT JOIN v_GS_WORKSTATION_STATUS hw ON sys.ResourceID = hw.ResourceID$cspJoin
+WHERE sys.Client0 = 1
+  AND sys.Operating_System_Name_and0 LIKE '%Windows%'
+ORDER BY sys.Name0
+"@
+
+$cmd = $conn.CreateCommand(); $cmd.CommandText = $query; $cmd.CommandTimeout = 120
+$reader = $cmd.ExecuteReader(); $results = @()
+while ($reader.Read()) {
+  $results += [PSCustomObject]@{
+    ComputerName     = $reader["ComputerName"]
+    Manufacturer     = $reader["Manufacturer"]
+    Model            = $reader["Model"]
+    BIOSVersion      = $reader["BIOSVersion"]
+    BIOSReleaseDate  = if ($reader["BIOSReleaseDate"] -is [DBNull]) { $null }
+                       else { $reader["BIOSReleaseDate"].ToString("yyyy-MM-dd") }
+    LastHardwareScan = if ($reader["LastHardwareScan"] -is [DBNull]) { $null }
+                       else { $reader["LastHardwareScan"].ToString("yyyy-MM-dd HH:mm") }
+    CSPVersion       = if ($reader["CSPVersion"] -is [DBNull]) { $null }
+                       else { $reader["CSPVersion"] }
+  }
+}
+$reader.Close(); $conn.Close()
+$results | ConvertTo-Json -Depth 3 | Out-File $OutputFile -Encoding UTF8
+Write-Host "Exportiert: $($results.Count) Geräte nach $OutputFile" -ForegroundColor Green</code></pre>
+
+      <h4>Skript-Parameter</h4>
+      <table class="doc-table">
+        <thead><tr><th>Parameter</th><th>Standard</th><th>Beschreibung</th></tr></thead>
+        <tbody>
+          <tr><td><code>-SiteServer</code></td><td><code>CMSERVER</code></td><td>Hostname oder IP des SQL Servers mit der ConfigMgr-Datenbank.</td></tr>
+          <tr><td><code>-SiteCode</code></td><td><code>P01</code></td><td>Dreistelliger ConfigMgr-Standortcode. Datenbankname wird als <code>CM_&lt;SiteCode&gt;</code> abgeleitet.</td></tr>
+          <tr><td><code>-OutputFile</code></td><td><code>.\cm_bios_export.json</code></td><td>Pfad und Dateiname der JSON-Ausgabedatei.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="step1-csp">CSP-Version — HP SBKPFV3-Bereitschaft (optional)</h3>
+      <p>Für HP-Geräte haben Microsoft und HP eine Mindest-BIOS-Version als Voraussetzung für die sicheren Installation der neuen Secure-Boot-Zertifikate definiert. HP veröffentlicht einen zusätzlichen Bereitschaftsindikator im SMBIOS-Typ-1-Versionsfeld: Ist die Zeichenfolge <strong>SBKPFV3</strong> vorhanden, unterstützt das BIOS die neuen Zertifikate bereits und es ist kein BIOS-Update vor dem Zertifikat-Rollout nötig.</p>
+      <p>Dieses Feld wird über <code>Win32_ComputerSystemProduct.Version</code> in WMI bereitgestellt, was <code>v_GS_COMPUTER_SYSTEM_PRODUCT.Version0</code> in ConfigMgr entspricht. Das PowerShell-Skript erkennt automatisch, ob diese Inventarklasse aktiviert ist, und bindet sie bei Vorhandensein ein.</p>
+      <div class="callout callout-info">
+        <div class="callout-icon">ℹ️</div>
+        <div class="callout-body">
+          <strong>Win32_ComputerSystemProduct im Hardware-Inventar aktivieren</strong>
+          In der ConfigMgr-Konsole: <em>Verwaltung → Clienteinstellungen → [Ihre Einstellungen] → Hardwareinventur → Klassen festlegen → Hinzufügen → Win32_ComputerSystemProduct</em>. Nach dem nächsten Hardware-Inventar-Zyklus wird das CSP-Versionsfeld befüllt.
+        </div>
+      </div>
+      <p>Manuelle Prüfung auf einem HP-Gerät mit PowerShell:</p>
+      <pre><code>(Get-CimInstance -ClassName Win32_ComputerSystemProduct).Version
+# Beispielausgabe wenn bereit:    "HP ... SBKPFV3 ..."
+# Beispielausgabe wenn nicht bereit: "HP EliteDesk 800 G6"  (kein SBKPFV3)</code></pre>
+      <p>Quelle: <a href="https://support.hp.com/my-en/document/ish_13070353-13070429-16" target="_blank">HP ISH_13070353</a> — <em>HP Business PCs: Prepare for new Windows Secure Boot certificates</em>.</p>
+
+      <h3 id="step1-ssrs">Option B — SSRS-Export</h3>
+      <p>Erstellen Sie einen benutzerdefinierten Bericht im ConfigMgr Reporting Services-Portal mit der nachstehenden Abfrage und exportieren Sie die Ergebnisse als <strong>CSV (durch Trennzeichen getrennt)</strong>. Der CSP-Versions-JOIN ist als optionaler Kommentar enthalten — entfernen Sie ihn, wenn <code>Win32_ComputerSystemProduct</code> in Ihrer Umgebung nicht aktiviert ist.</p>
+      <pre><code>-- SSRS-Berichtsdatensatz-Abfrage (v1.10)
+-- CSPVersion-Zeile und JOIN entfernen, falls Win32_ComputerSystemProduct nicht aktiviert.
+SELECT DISTINCT
+  sys.Name0                                    AS ComputerName,
+  cs.Manufacturer0                             AS Manufacturer,
+  cs.Model0                                    AS Model,
+  bios.SMBIOSBIOSVersion0                      AS BIOSVersion,
+  CONVERT(varchar(10), bios.ReleaseDate0, 120) AS BIOSReleaseDate,
+  CONVERT(varchar(16), hw.LastHWScan, 120)     AS LastHardwareScan,
+  ISNULL(csp.Version0, '')                     AS CSPVersion
+FROM v_R_System sys
+  JOIN v_GS_COMPUTER_SYSTEM    cs   ON sys.ResourceID = cs.ResourceID
+  JOIN v_GS_PC_BIOS            bios ON sys.ResourceID = bios.ResourceID
+  LEFT JOIN v_GS_WORKSTATION_STATUS          hw  ON sys.ResourceID = hw.ResourceID
+  LEFT JOIN v_GS_COMPUTER_SYSTEM_PRODUCT     csp ON sys.ResourceID = csp.ResourceID
+WHERE sys.Client0 = 1
+  AND sys.Operating_System_Name_and0 LIKE '%Windows%'
+ORDER BY sys.Name0</code></pre>
+      <div class="callout callout-warn">
+        <div class="callout-icon">⚠️</div>
+        <div class="callout-body">
+          <strong>SSRS JSON-Export wird nicht unterstützt</strong>
+          Bitte <em>CSV (durch Trennzeichen getrennt)</em> verwenden. SSRS-Datenfeed-Exporte sind im ATOM-Format, nicht JSON.
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 2 -->
+    <section class="section" id="step2">
+      <h2><span class="section-num">04</span>Schritt 2 — Laden &amp; Analysieren</h2>
+      <div class="section-rule"></div>
+
+      <h3 id="step2-json">JSON-Import (PowerShell-Export)</h3>
+      <ol class="step-list">
+        <li><code>sccm-bios-compliance.html</code> im Browser öffnen.</li>
+        <li>Im Bereich <strong>Schritt 2</strong> auf die Ablageflächeklicken oder die <code>.json</code>-Datei darauf ziehen.</li>
+        <li>Das Tool zeigt Dateiname und Datensatzanzahl an. Auf <strong>Analyse starten</strong> klicken.</li>
+      </ol>
+
+      <h3 id="step2-csv">CSV-Import (SSRS-Export)</h3>
+      <ol class="step-list">
+        <li>Die <code>.csv</code>-Datei auf die Ablagefläche in Schritt 2 ziehen oder auswählen.</li>
+        <li>Das Tool erkennt Spalten automatisch anhand von Schlüsselwörtern in den Überschriften. Ggf. anpassen.</li>
+        <li>Auf <strong>Analyse starten</strong> klicken.</li>
+      </ol>
+
+      <h4>CSV-Spalten-Erkennung — Schlüsselwörter</h4>
+      <table class="doc-table">
+        <thead><tr><th>Feld</th><th>Gesuchte Schlüsselwörter</th><th>Pflichtfeld</th></tr></thead>
+        <tbody>
+          <tr><td>Computername</td><td><code>name</code>, <code>computername</code>, <code>device</code>, <code>hostname</code></td><td>✅ Ja</td></tr>
+          <tr><td>Hersteller</td><td><code>manufacturer</code>, <code>vendor</code>, <code>make</code>, <code>mfg</code></td><td>✅ Ja</td></tr>
+          <tr><td>Modell</td><td><code>model</code></td><td>✅ Ja</td></tr>
+          <tr><td>BIOS-Version</td><td><code>bios</code>, <code>smbios</code>, <code>biosversion</code>, <code>firmware</code></td><td>✅ Ja</td></tr>
+          <tr><td>BIOS-Erscheinungsdatum</td><td><code>biosdate</code>, <code>releasedate</code>, <code>date</code></td><td>Nein</td></tr>
+          <tr><td>Letzter HW-Scan</td><td><code>lasthardwarescan</code>, <code>lasthwscan</code>, <code>hwscan</code></td><td>Nein</td></tr>
+          <tr><td>CSP-Version</td><td><code>cspversion</code>, <code>cspver</code>, <code>computerproduct</code>, <code>type1</code></td><td>Nein</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- STEP 3 -->
+    <section class="section" id="step3">
+      <h2><span class="section-num">05</span>Schritt 3 — Secure-Boot-Import <span style="font-size:13px;font-weight:400;color:var(--dim);margin-left:8px;">(optional)</span></h2>
+      <div class="section-rule"></div>
+      <p>Nach der BIOS-Compliance-Analyse können Sie Ihre Geräte optional mit einem separaten <strong>Secure Boot 2023</strong>-Konformitätsbericht aus ConfigMgr abgleichen. Dies fügt eine <em>Secure Boot</em>-Spalte zur Ergebnistabelle und zwei zusätzliche Übersichtskacheln hinzu.</p>
+
+      <h3>Secure-Boot-Bericht exportieren</h3>
+      <p>Im ConfigMgr Reporting Services-Portal den Secure Boot 2023-Konformitätsbericht suchen und als <strong>CSV (durch Trennzeichen getrennt)</strong> exportieren. Erwartete Spalten:</p>
+      <table class="doc-table">
+        <thead><tr><th>Spalte</th><th>Beispielwerte</th></tr></thead>
+        <tbody>
+          <tr><td><code>Computer_Name</code></td><td><code>DESKTOP-001</code></td></tr>
+          <tr><td><code>Secure_Boot_2023_Status</code></td><td><code>Updated (Compliant)</code> · <code>Not Updated (Non-Compliant)</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Bericht laden</h3>
+      <ol>
+        <li>Die exportierte CSV auf die Ablagefläche in <strong>Schritt 3</strong> ziehen oder auswählen.</li>
+        <li>Das Tool erkennt <code>Computer_Name</code> und <code>Secure_Boot_2023_Status</code> automatisch. Ggf. manuell anpassen.</li>
+        <li>Auf <strong>Anwenden</strong> klicken. Geräte werden nach Computername (Groß-/Kleinschreibung wird ignoriert) abgeglichen.</li>
+      </ol>
+
+      <h3>Abgleichergebnisse</h3>
+      <p>Nach dem Anwenden enthält die Ergebnistabelle eine <strong>Secure Boot</strong>-Spalte und die Filterleiste einen <strong>Secure Boot</strong>-Dropdown. Zwei neue Übersichtskacheln erscheinen:</p>
+      <table class="doc-table">
+        <thead><tr><th>Kachel</th><th>Beschreibung</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Secure Boot OK</strong></td><td>Geräte mit Status <em>Updated (Compliant)</em>. Zeigt Anzahl und Prozentsatz.</td></tr>
+          <tr><td><strong>Secure Boot nicht konform</strong></td><td>Geräte mit Status <em>Not Updated (Non-Compliant)</em>.</td></tr>
+        </tbody>
+      </table>
+      <p>Geräte, die im Secure-Boot-Bericht fehlen, werden als <em>Nicht im Bericht</em> angezeigt. Mit <strong>Löschen</strong> können die Secure-Boot-Daten entfernt werden, ohne die Hauptanalyse zurückzusetzen.</p>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="section" id="results">
+      <h2><span class="section-num">06</span>Ergebnisse &amp; Filter</h2>
+      <div class="section-rule"></div>
+
+      <h3>Übersichtskacheln</h3>
+      <p>Nach der Analyse erscheinen Übersichtskacheln am oberen Seitenrand. Kacheln für VMs, Secure Boot und SBKPFV3 erscheinen nur, wenn entsprechende Daten vorhanden sind.</p>
+      <table class="doc-table">
+        <thead><tr><th>Kachel</th><th>Beschreibung</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Geräte gesamt</strong></td><td>Analysierte physische Geräte (VMs werden vor der Zählung ausgeschlossen).</td></tr>
+          <tr><td><strong>BIOS aktuell</strong></td><td>Geräte mit installierter BIOS-Version ≥ Mindestversion. Zeigt Anzahl und Prozentsatz.</td></tr>
+          <tr><td><strong>Update erforderlich</strong></td><td>Geräte mit installierter BIOS-Version &lt; Mindestversion.</td></tr>
+          <tr><td><strong>Nicht geprüft</strong></td><td>Kein DB-Eintrag für dieses Modell oder keine BIOS-Version von ConfigMgr zurückgeliefert.</td></tr>
+          <tr><td><strong>VMs ausgeschlossen</strong> <em>(bedingt)</em></td><td>Erscheint, wenn mindestens eine VM erkannt und ausgeschlossen wurde.</td></tr>
+          <tr><td><strong>Secure Boot OK</strong> <em>(optional)</em></td><td>Erscheint nach dem Laden eines Secure-Boot-Berichts (Schritt 3).</td></tr>
+          <tr><td><strong>Secure Boot nicht konform</strong> <em>(optional)</em></td><td>Erscheint nach dem Laden eines Secure-Boot-Berichts (Schritt 3).</td></tr>
+          <tr><td><strong>SBKPFV3 bereit</strong> <em>(optional)</em></td><td>Erscheint, wenn CSP-Versionsdaten vorhanden. HP-Geräte mit SBKPFV3-Marker im BIOS.</td></tr>
+          <tr><td><strong>SBKPFV3 erforderlich</strong> <em>(optional)</em></td><td>HP-Geräte mit CSP-Version, aber ohne SBKPFV3 im String.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Filterleiste</h3>
+      <table class="doc-table">
+        <thead><tr><th>Filter</th><th>Verhalten</th></tr></thead>
+        <tbody>
+          <tr><td>Suche</td><td>Groß-/Kleinschreibung-unabhängige Teilstring-Suche über Gerätename und Modell.</td></tr>
+          <tr><td>Hersteller</td><td>Dropdown aus den tatsächlichen Herstellern in Ihren Daten.</td></tr>
+          <tr><td>Status</td><td>Nur <em>Aktuell</em>, <em>Update erforderlich</em>, <em>Nicht geprüft</em> oder <em>End of Life</em> anzeigen.</td></tr>
+          <tr><td>BIOS-Mindestdatum</td><td>Geräte ausblenden, deren BIOS-Erscheinungsdatum vor dem gewählten Datum liegt.</td></tr>
+          <tr><td>Secure Boot <em>(optional)</em></td><td>Nach Secure-Boot-Status filtern. Nur sichtbar nach dem Laden des Schritt-3-Berichts.</td></tr>
+          <tr><td>SBKPFV3 (HP) <em>(optional)</em></td><td>Nach HP Secure-Boot-Bereitschaft filtern: <em>Bereit</em>, <em>Update erforderlich</em>, <em>Keine Daten</em>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Tabellenspalten</h3>
+      <p>Alle Spalten sind durch Klicken auf den Spaltenkopf sortierbar. Die Standardsortierung zeigt <span class="badge badge-red"><span class="dot dot-red"></span>Update erforderlich</span>-Geräte zuerst.</p>
+      <table class="doc-table">
+        <thead><tr><th>Spalte</th><th>Quelle</th><th>Hinweise</th></tr></thead>
+        <tbody>
+          <tr><td>Gerätename</td><td>ConfigMgr</td><td><code>Name0</code> aus <code>v_R_System</code>.</td></tr>
+          <tr><td>Hersteller</td><td>ConfigMgr</td><td>Roher Herstellerstring aus <code>v_GS_COMPUTER_SYSTEM</code>.</td></tr>
+          <tr><td>Modell</td><td>ConfigMgr</td><td>Modellname aus <code>v_GS_COMPUTER_SYSTEM</code>. Wird für die BIOS-DB-Suche verwendet.</td></tr>
+          <tr><td>BIOS (installiert)</td><td>ConfigMgr</td><td>Normalisierte BIOS-Version aus <code>SMBIOSBIOSVersion0</code>. HP-Familiencodes werden automatisch entfernt.</td></tr>
+          <tr><td>BIOS (Minimum)</td><td>BIOS-DB</td><td>Vom Hersteller veröffentlichte Mindestversion für das Secure-Boot-2023-Update.</td></tr>
+          <tr><td>DB-Modell (erkannt)</td><td>BIOS-DB</td><td>Genutzter DB-Eintrag. Bei Lenovo MT-Code-Auflösung: <code>Modellname (MT:XXXX)</code>.</td></tr>
+          <tr><td>Status</td><td>Berechnet</td><td>Siehe <a href="#status-codes">Statuscodes</a>.</td></tr>
+          <tr><td>BIOS-Datum</td><td>ConfigMgr</td><td>Erscheinungsdatum aus <code>v_GS_PC_BIOS</code>.</td></tr>
+          <tr><td>Letzter HW-Scan</td><td>ConfigMgr</td><td>Letztes Hardware-Inventardatum aus <code>v_GS_WORKSTATION_STATUS</code>.</td></tr>
+          <tr><td>Secure Boot <em>(optional)</em></td><td>Schritt-3-CSV</td><td>Sichtbar nach dem Laden von Schritt 3.</td></tr>
+          <tr><td>SBKPFV3 <em>(optional)</em></td><td>CSPVersion-Feld</td><td>Sichtbar bei CSP-Daten. Nur HP: <em>SBKPFV3 bereit</em>, <em>Update erforderlich</em>, <em>Keine Daten</em>. Nicht-HP zeigt —.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- EXPORT -->
+    <section class="section" id="export">
+      <h2><span class="section-num">07</span>Export</h2>
+      <div class="section-rule"></div>
+      <p>Das Dropdown <strong>Export ▾</strong> bietet drei Formate. Alle Exporte berücksichtigen die aktuellen Filter — nur sichtbare Zeilen werden einbezogen.</p>
+
+      <h3 id="export-csv">CSV</h3>
+      <p>UTF-8 mit BOM — öffnet sich in Excel ohne Importdialog korrekt.</p>
+      <table class="doc-table">
+        <thead><tr><th>Spalte</th><th>Inhalt</th></tr></thead>
+        <tbody>
+          <tr><td>Computer Name</td><td>Gerätename aus ConfigMgr</td></tr>
+          <tr><td>Manufacturer</td><td>Herstellername</td></tr>
+          <tr><td>Model</td><td>Modellname</td></tr>
+          <tr><td>BIOS (installed)</td><td>Normalisierte BIOS-Version</td></tr>
+          <tr><td>BIOS (installed raw)</td><td>Ursprünglicher Rohwert aus ConfigMgr</td></tr>
+          <tr><td>BIOS (minimum)</td><td>Mindestversion aus der BIOS-Datenbank</td></tr>
+          <tr><td>DB Model (matched)</td><td>Genutzter Datenbankeintrag für die Suche</td></tr>
+          <tr><td>Status</td><td><code>Up to date</code>, <code>Update required</code>, <code>Not checked</code> oder <code>End of Life</code></td></tr>
+          <tr><td>BIOS Release Date</td><td>Erscheinungsdatum des installierten BIOS</td></tr>
+          <tr><td>Last HW Scan</td><td>Letztes Hardware-Inventardatum</td></tr>
+          <tr><td>Secure Boot <em>(optional)</em></td><td>Bei geladenem Schritt-3-Datensatz vorhanden.</td></tr>
+          <tr><td>CSP Version <em>(optional)</em></td><td>Roher SMBIOS-Typ-1-Versionsstring. Bei vorhandenen CSP-Daten.</td></tr>
+          <tr><td>SBKPFV3 Status <em>(optional)</em></td><td>HP-Bereitschaft: <code>SBKPFV3 Ready</code>, <code>Update Needed</code>, <code>No Data</code> oder <code>N/A</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="export-html">HTML-Bericht</h3>
+      <p>Erstellt eine eigenständige <code>.html</code>-Datei mit Kachelübersicht und gefilterter Ergebnistabelle. Interaktiv — Klick auf Spaltenkopf sortiert. Druckt sauber im Browser.</p>
+      <div class="callout callout-info">
+        <strong>Sortierverhalten</strong>
+        Textspalten verwenden lokalisierungsgerechte numerische Sortierung, sodass <code>1.9.0</code> korrekt vor <code>1.10.0</code> sortiert wird.
+      </div>
+
+      <h3 id="export-pdf">PDF / Drucken</h3>
+      <p>Löst den Browser-Druckdialog mit einem dedizierten Druckstylesheet aus: Importkarte ausgeblendet, Zeitstempel-Kopfzeile eingefügt, Tabellenkopfzeilen werden je Seite wiederholt. Im Dialog <strong>Als PDF speichern</strong> wählen.</p>
+    </section>
+
+    <!-- BIOS DB -->
+    <section class="section" id="bios-db">
+      <h2><span class="section-num">08</span>BIOS-Datenbank</h2>
+      <div class="section-rule"></div>
+      <div class="db-grid">
+        <div class="db-tile dell">
+          <div class="db-tile-label">Dell</div>
+          <div class="db-tile-count">218</div>
+          <div class="db-tile-source">KB000347876 · 2026</div>
+        </div>
+        <div class="db-tile hp">
+          <div class="db-tile-label">HP</div>
+          <div class="db-tile-count">319</div>
+          <div class="db-tile-source">ISH_13070353 · 2025/2026</div>
+        </div>
+        <div class="db-tile lenovo">
+          <div class="db-tile-label">Lenovo</div>
+          <div class="db-tile-count">651</div>
+          <div class="db-tile-source">HT518129 · inkl. MT-Codes</div>
+        </div>
+      </div>
+      <p>Die Datenbank ordnet Hersteller + Modellname der Mindest-BIOS-Version zu, die vor der sicheren Anwendung des Secure-Boot-2023-UEFI-Zertifikatsupdates erforderlich ist. Zusätzlich enthält die <code>LENOVO_MT</code>-Nachschlagtabelle ~250 Lenovo-4-stellige Maschinentyp-Codes mit den zugehörigen Datenbankeinträgen.</p>
+      <div class="callout callout-warn">
+        <div class="callout-icon">⚠️</div>
+        <div class="callout-body">
+          <strong>Aktualität der Datenbank</strong>
+          Hersteller aktualisieren ihre Anforderungen kontinuierlich. Bitte kritische Entscheidungen direkt gegen die oben verlinkten Hersteller-KB-Artikel prüfen.
+        </div>
+      </div>
+
+      <h3 id="matching">Modell-Erkennung</h3>
+      <p>ConfigMgr-Modellstrings enthalten oft zusätzliche Wörter, die nicht in der Herstellerdatenbank vorhanden sind. Das Tool verwendet eine vierstufige Erkennungs-Pipeline:</p>
+      <div class="match-flow">
+        <div class="match-stage">
+          <span class="match-stage-num">Stufe 1</span>
+          <div class="match-stage-body">
+            <div class="match-stage-title">Exakte Übereinstimmung (Groß-/Kleinschreibung ignoriert)</div>
+            <div class="match-stage-desc">Beide Strings werden normalisiert (Kleinbuchstaben, Satzzeichen → Leerzeichen) und verglichen.</div>
+          </div>
+        </div>
+        <div class="match-arrow">↓ bei keiner Übereinstimmung</div>
+        <div class="match-stage">
+          <span class="match-stage-num">Stufe 2</span>
+          <div class="match-stage-body">
+            <div class="match-stage-title">Teilstring-Enthaltensein — längster gewinnt</div>
+            <div class="match-stage-desc">Wenn der Gerätename den DB-Eintrag als Teilstring enthält (oder umgekehrt), wird der längste Eintrag verwendet. Behandelt Suffixe wie "Notebook PC".</div>
+          </div>
+        </div>
+        <div class="match-arrow">↓ bei keiner Übereinstimmung</div>
+        <div class="match-stage">
+          <span class="match-stage-num">Stufe 3</span>
+          <div class="match-stage-body">
+            <div class="match-stage-title">Jaccard-Wort-Ähnlichkeit ≥ 60 %</div>
+            <div class="match-stage-desc">Die Wortmengen beider Strings werden verglichen. Schnittmenge/Vereinigung ≥ 0,60 → bester DB-Eintrag wird verwendet.</div>
+          </div>
+        </div>
+        <div class="match-arrow">↓ bei keiner Übereinstimmung (nur Lenovo)</div>
+        <div class="match-stage">
+          <span class="match-stage-num">Stufe 4</span>
+          <div class="match-stage-body">
+            <div class="match-stage-title">Lenovo Maschinentyp-Code-Fallback</div>
+            <div class="match-stage-desc">Wenn alle namensbasierten Stufen für ein Lenovo-Gerät fehlschlagen, extrahiert das Tool die ersten 4 Zeichen des Modellstrings als Maschinentyp-Code und sucht diesen in der <code>LENOVO_MT</code>-Tabelle. Siehe <a href="#lenovo-mt">Lenovo MT-Nachschlag</a>.</div>
+          </div>
+        </div>
+      </div>
+
+      <h3 id="lenovo-mt">Lenovo Maschinentyp-Code-Nachschlag</h3>
+      <p>ConfigMgr meldet normalerweise Lenovo-Produktnamen über <code>Win32_ComputerSystem.Model</code> (z. B. <em>ThinkPad T14 Gen 1</em>), die die dreistufige Namenssuche gut verarbeitet. Einige Lenovo-Geräte — typischerweise solche, bei denen das BIOS nach dem Werk nie aktualisiert wurde — melden jedoch nur ihren 4-stelligen Maschinentyp-Code (z. B. <em>20S1</em>) in diesem Feld.</p>
+      <p>Die <code>LENOVO_MT</code>-Tabelle ordnet ~250 Maschinentyp-Codes dem entsprechenden BIOS-Datenbankschlüssel zu. Wenn die Stufen 1–3 für ein Lenovo-Gerät fehlschlagen, extrahiert Stufe 4 die ersten 4 Zeichen des Modellstrings und sucht darin.</p>
+
+      <h4>BIOS-Familien-Disambiguierung</h4>
+      <p>Einige Lenovo-Maschinentypen haben mehr als eine BIOS-Plattform mit unterschiedlichen Mindestversionen. Beispielsweise wurde das ThinkPad P14s Gen 2 mit der N34ET- oder N3WET-BIOS-Plattform ausgeliefert (unterschiedliche Minima: 1,61 vs. 1,13). Die <code>LENOVO_MT_BIOS</code>-Tabelle verwendet die ersten 5 Zeichen des BIOS-Strings als Zusatzschlüssel.</p>
+      <p>Bei einer Stufe-4-Übereinstimmung über die MT-Tabelle zeigt die Spalte <strong>DB-Modell</strong> den aufgelösten Produktnamen gefolgt vom MT-Code in Klammern, z. B.: <code>t14 gen 1 (MT:20S1)</code>.</p>
+
+      <h3 id="normalization">Versions-Normalisierung</h3>
+      <table class="doc-table">
+        <thead><tr><th>Rohwert (aus ConfigMgr)</th><th>Normalisiert</th><th>Muster</th></tr></thead>
+        <tbody>
+          <tr><td><code>T93 Ver. 01.23.00</code></td><td><code>01.23.00</code></td><td>HP-Familiencode-Präfix</td></tr>
+          <tr><td><code>J01 v02.33</code></td><td><code>02.33</code></td><td>HP-Familiencode + Kleinbuchstaben-v</td></tr>
+          <tr><td><code>Version 1.82</code></td><td><code>1.82</code></td><td>Führendes "Version"-Präfix</td></tr>
+          <tr><td><code>1.72 (ThinkPad)</code></td><td><code>1.72</code></td><td>Lenovo-Suffix in Klammern</td></tr>
+          <tr><td><code>A19</code></td><td><code>A19</code></td><td>Dell-Buchstabenprefix — wird durchgeleitet</td></tr>
+          <tr><td><code>F.22</code></td><td><code>0.22</code></td><td>HP-Legacy-F.xx-Format</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="comparison">Versionsvergleich</h3>
+      <p>Versionsstrings werden an <code>.</code> und <code>-</code> aufgeteilt und jedes Segment numerisch verglichen. <code>1.9.0</code> wird korrekt unter <code>1.10.0</code> eingeordnet. Wenn keine Version ermittelt werden kann, ist das Ergebnis <em>Nicht geprüft</em>.</p>
+    </section>
+
+    <!-- VM EXCLUSION -->
+    <section class="section" id="vm-exclusion">
+      <h2><span class="section-num">09</span>VM-Ausschluss</h2>
+      <div class="section-rule"></div>
+      <p>Virtuelle Maschinen werden vor der Analyse automatisch ausgeschlossen. Sie können keine BIOS-Updates über Standard-Herstellerkanäle erhalten und würden andernfalls falsch-positive Ergebnisse erzeugen. Ausgeschlossene Geräte erscheinen nicht in der Ergebnistabelle, den Compliance-Zählungen oder Exporten.</p>
+      <p>Wenn mindestens eine VM erkannt wird, erscheint die Kachel <strong>VMs ausgeschlossen</strong> mit der Anzahl und dem Untertext "nicht analysiert".</p>
+
+      <h3>Erkennungsmerkmale</h3>
+      <table class="doc-table">
+        <thead><tr><th>Feld</th><th>Wert (Groß-/Kleinschreibung ignoriert)</th><th>Plattform</th></tr></thead>
+        <tbody>
+          <tr><td>Modell</td><td>enthält <code>virtual machine</code></td><td>Microsoft Hyper-V, VirtualBox</td></tr>
+          <tr><td>BIOSVersion</td><td>enthält <code>hyper-v</code></td><td>Microsoft Hyper-V BIOS-String</td></tr>
+          <tr><td>Hersteller</td><td>enthält <code>vmware</code></td><td>VMware (z. B. "VMware, Inc.")</td></tr>
+          <tr><td>Modell</td><td>enthält <code>vmware</code></td><td>VMware (z. B. "VMware7,1")</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- STATUS CODES -->
+    <section class="section" id="status-codes">
+      <h2><span class="section-num">10</span>Statuscodes</h2>
+      <div class="section-rule"></div>
+      <table class="doc-table">
+        <thead><tr><th>Status</th><th>Bedeutung</th><th>Maßnahme</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-green"><span class="dot dot-green"></span>Aktuell</span></td>
+            <td>Installiertes BIOS ≥ Mindestversion. Das Gerät erfüllt die Voraussetzung für das Secure-Boot-2023-Update.</td>
+            <td>Keine Maßnahme erforderlich.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-red"><span class="dot dot-red"></span>Update erforderlich</span></td>
+            <td>Installiertes BIOS &lt; Mindestversion. Die Anwendung des Secure-Boot-Zertifikatsupdates vor dem BIOS-Update kann zu einem Startfehler führen.</td>
+            <td>BIOS auf mindestens die in der Spalte <em>BIOS (Minimum)</em> angezeigte Version aktualisieren, bevor das Secure-Boot-Update installiert wird.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-gray"><span class="dot dot-gray"></span>Nicht geprüft</span></td>
+            <td>Kein DB-Eintrag für diesen Hersteller/dieses Modell oder ConfigMgr hat keine BIOS-Version zurückgeliefert.</td>
+            <td>Prüfen, ob Hardware-Inventar korrekt läuft. Ggf. fehlendes Modell zur Datenbank hinzufügen lassen.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-yellow"><span class="dot" style="background:var(--yellow)"></span>End of Life</span></td>
+            <td>Der Hersteller hat kein BIOS-Update für dieses Modell veröffentlicht. Das Gerät kann nicht konform gemacht werden.</td>
+            <td>Hardwareaustausch in Betracht ziehen. Das Secure-Boot-Zertifikatsupdate auf diesen Geräten bis zu einer Herstellerlösung nicht zulassen oder das Risiko bewusst akzeptieren und gründlich testen.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout callout-danger">
+        <div class="callout-icon">🔴</div>
+        <div class="callout-body">
+          <strong>Vor der Bereitstellung des Secure-Boot-2023-Updates</strong>
+          Sicherstellen, dass alle Geräte mit <em>Update erforderlich</em> zunächst ihr BIOS aktualisiert haben. Mit einem zweiten Durchlauf dieses Tools validieren, bevor das Windows-Update freigegeben wird.
+        </div>
+      </div>
+    </section>
+
+    <!-- CHANGELOG -->
+    <section class="section" id="changelog">
+      <h2><span class="section-num">11</span>Änderungsprotokoll</h2>
+      <div class="section-rule"></div>
+      <ul class="changelog">
+
+        <li class="changelog-entry">
+          <div><div class="changelog-version">v1.10</div><div class="changelog-date">Juni 2026</div></div>
+          <div>
+            <div class="changelog-title">Lenovo Maschinentyp-Code-Nachschlag + EOL-Status</div>
+            <ul class="changelog-items">
+              <li><code>LENOVO_MT</code>-Tabelle: ~250 4-stellige Lenovo-MT-Codes → BIOS-DB-Schlüssel (Stufe-4-Fallback)</li>
+              <li><code>LENOVO_MT_BIOS</code>-Tabelle: BIOS-Familien-Disambiguierung (gleicher MT-Code, unterschiedliche BIOS-Plattform)</li>
+              <li>DB-Modell-Spalte zeigt <code>Modellname (MT:XXXX)</code> bei MT-Code-Auflösung</li>
+              <li>21 Lenovo-Disambiguierungseinträge zur BIOS-DB hinzugefügt; Lenovo-DB nun bei 651 Einträgen</li>
+              <li><em>End of Life</em>-DB-Einträge erscheinen nun als eigenständiger <span class="badge badge-yellow" style="font-size:.7rem;">End of Life</span>-Status</li>
+              <li>EOL-Status im Status-Filter-Dropdown und allen Exportformaten ergänzt</li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="changelog-entry">
+          <div><div class="changelog-version">v1.9.x</div><div class="changelog-date">Juni 2026</div></div>
+          <div>
+            <div class="changelog-title">VMware-VM-Ausschluss</div>
+            <ul class="changelog-items">
+              <li>VM-Erkennung auf VMware-VMs erweitert: <code>Manufacturer</code> enthält "vmware" und <code>Model</code> enthält "vmware"</li>
+              <li>Vorherige Version erkannte nur Hyper-V und generische "virtual machine"-Modellstrings</li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="changelog-entry">
+          <div><div class="changelog-version">v1.9</div><div class="changelog-date">Mai 2026</div></div>
+          <div>
+            <div class="changelog-title">SBKPFV3 HP-Bereitschaftsprüfung + VM-Ausschluss</div>
+            <ul class="changelog-items">
+              <li>Neue optionale SBKPFV3-Prüfung für HP-Geräte über <code>Win32_ComputerSystemProduct.Version</code></li>
+              <li>PowerShell-Skript erkennt <code>v_GS_COMPUTER_SYSTEM_PRODUCT</code> automatisch und bezieht CSP-Version bei Vorhandensein ein</li>
+              <li>Zwei neue Kacheln: SBKPFV3 bereit und SBKPFV3 erforderlich; SBKPFV3-Spalte und Filter ergänzt</li>
+              <li>VM-Ausschluss: Geräte mit "virtual machine" im Modell oder "hyper-v" im BIOS werden vor der Analyse ausgeschlossen</li>
+              <li>Kachel "VMs ausgeschlossen" erscheint bei erkannten VMs</li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="changelog-entry">
+          <div><div class="changelog-version">v1.8.1</div><div class="changelog-date">Mai 2026</div></div>
+          <div>
+            <div class="changelog-title">Bugfix — Secure-Boot-CSV-Spaltenindizierung</div>
+            <ul class="changelog-items">
+              <li>Behoben: Alle Geräte wurden nach dem Laden einer Secure-Boot-CSV als <em>Nicht im Bericht</em> angezeigt</li>
+              <li>Ursache: <code>applySBData</code> verwendete den Header-String statt des Integer-Index für den Zeilenzugriff</li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="changelog-entry">
+          <div><div class="changelog-version">v1.8</div><div class="changelog-date">Mai 2026</div></div>
+          <div>
+            <div class="changelog-title">Export-Dropdown — HTML-Bericht und PDF</div>
+            <ul class="changelog-items">
+              <li>Export-CSV-Schaltfläche ersetzt durch <strong>Export ▾</strong>-Dropdown: CSV, HTML-Bericht, PDF/Drucken</li>
+              <li>HTML-Bericht: eigenständige Datei mit Kachelübersicht + interaktiv sortierbarer Tabelle</li>
+              <li>PDF/Drucken: Importkarte ausgeblendet, Zeitstempel-Kopfzeile eingefügt</li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="changelog-entry">
+          <div><div class="changelog-version">v1.7</div><div class="changelog-date">Mai 2026</div></div>
+          <div>
+            <div class="changelog-title">Import-Layout-Überarbeitung — vertikale Pipeline</div>
+            <ul class="changelog-items">
+              <li>Alle drei Import-Schritte in einer Karte mit vertikaler Timeline zusammengefasst</li>
+              <li>Schritt 3 als optional visuell hervorgehoben: gedämpfte Überschrift, gestrichelter Punktmarker</li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="changelog-entry">
+          <div><div class="changelog-version">v1.6</div><div class="changelog-date">Mai 2026</div></div>
+          <div>
+            <div class="changelog-title">Schritt 3 — Secure-Boot-Quervergleich</div>
+            <ul class="changelog-items">
+              <li>Neuer optionaler Schritt 3: ConfigMgr Secure Boot 2023-Konformitäts-CSV laden</li>
+              <li>Secure-Boot-Spalte, Kacheln, Filter-Dropdown und Export-Spalte ergänzt</li>
+            </ul>
+          </div>
+        </li>
+
+        <li class="changelog-entry">
+          <div><div class="changelog-version">v1.0 – v1.4</div><div class="changelog-date">Mai 2026</div></div>
+          <div>
+            <div class="changelog-title">Frühe Versionen</div>
+            <ul class="changelog-items">
+              <li>v1.4: Layout-Verbesserungen, volle Bildschirmbreite, responsive Filterleiste</li>
+              <li>v1.3: HP-Datenbank von 111 auf 304 Modelle erweitert</li>
+              <li>v1.2: Visuelles Refresh — IBM Plex Design System, blaue Akzentfarbe</li>
+              <li>v1.1: HP-BIOS-Versions-Normalisierungs-Bugfix</li>
+              <li>v1.0: Erstveröffentlichung — PowerShell-Skript, SSRS-Abfrage, JSON/CSV-Import, Compliance-Engine</li>
+            </ul>
+          </div>
+        </li>
+
+      </ul>
+    </section>
+
+  </main>
+</div>
+<script>
+// ── Active TOC highlighting on scroll ──────────────────────
+const sections = document.querySelectorAll('section[id]');
+const tocLinks  = document.querySelectorAll('.toc-item');
+
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      tocLinks.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector(`.toc-item[href="#${entry.target.id}"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
